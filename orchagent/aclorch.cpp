@@ -953,41 +953,7 @@ bool AclTable::create()
     sai_attribute_t attr;
     vector<sai_attribute_t> table_attrs;
 
-    int32_t range_types_list[] =
-        { SAI_ACL_RANGE_TYPE_L4_DST_PORT_RANGE,
-          SAI_ACL_RANGE_TYPE_L4_SRC_PORT_RANGE
-        };
-
-    set<sai_acl_bind_point_type_t> binds;
-    for (const auto& portid_pair : ports)
-    {
-        Port port;
-        if (!gPortsOrch->getPort(portid_pair.first, port))
-        {
-         continue;
-        }
-
-        switch (port.m_type)
-        {
-        case Port::PHY:
-            binds.insert(SAI_ACL_BIND_POINT_TYPE_PORT);
-            break;
-        case Port::VLAN:
-            binds.insert(SAI_ACL_BIND_POINT_TYPE_VLAN);
-            break;
-        case Port::LAG:
-            binds.insert(SAI_ACL_BIND_POINT_TYPE_LAG);
-            break;
-        default:
-            return SAI_STATUS_FAILURE;
-        }
-    }
-
-    vector<int32_t> bpoint_list;
-    for (auto bind : binds)
-    {
-        bpoint_list.push_back(bind);
-    }
+    vector<int32_t> bpoint_list = { SAI_ACL_BIND_POINT_TYPE_PORT, SAI_ACL_BIND_POINT_TYPE_LAG };
 
     attr.id = SAI_ACL_TABLE_ATTR_ACL_BIND_POINT_TYPE_LIST;
     attr.value.s32list.count = static_cast<uint32_t>(bpoint_list.size());
@@ -1046,6 +1012,7 @@ bool AclTable::create()
         attr.value.booldata = true;
         table_attrs.push_back(attr);
     }
+
     attr.id = SAI_ACL_TABLE_ATTR_FIELD_L4_SRC_PORT;
     attr.value.booldata = true;
     table_attrs.push_back(attr);
@@ -1058,11 +1025,13 @@ bool AclTable::create()
     attr.value.booldata = true;
     table_attrs.push_back(attr);
 
-    if(stage == ACL_STAGE_INGRESS)
+    vector<int32_t> range_types_list = { SAI_ACL_RANGE_TYPE_L4_DST_PORT_RANGE, SAI_ACL_RANGE_TYPE_L4_SRC_PORT_RANGE };
+
+    if (stage == ACL_STAGE_INGRESS)
     {
         attr.id = SAI_ACL_TABLE_ATTR_FIELD_ACL_RANGE_TYPE;
-        attr.value.s32list.count = (uint32_t)(sizeof(range_types_list) / sizeof(range_types_list[0]));
-        attr.value.s32list.list = range_types_list;
+        attr.value.s32list.count = static_cast<uint32_t>(range_types_list.size());
+        attr.value.s32list.list = range_types_list.data();
         table_attrs.push_back(attr);
     }
 
