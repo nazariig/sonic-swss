@@ -155,8 +155,8 @@ static acl_ip_type_lookup_t aclIpTypeLookup =
     { IP_TYPE_ARP_REPLY,   SAI_ACL_IP_TYPE_ARP_REPLY }
 };
 
-AclRule::AclRule(AclOrch *aclOrch, string rule, string table, acl_table_type_t type, bool createCounter) :
-        m_pAclOrch(aclOrch),
+AclRule::AclRule(AclOrch *pAclOrch, string rule, string table, acl_table_type_t type, bool createCounter) :
+        m_pAclOrch(pAclOrch),
         m_id(rule),
         m_tableId(table),
         m_tableType(type),
@@ -166,7 +166,21 @@ AclRule::AclRule(AclOrch *aclOrch, string rule, string table, acl_table_type_t t
         m_priority(0),
         m_createCounter(createCounter)
 {
-    m_tableOid = aclOrch->getTableById(m_tableId);
+    m_tableOid = pAclOrch->getTableById(m_tableId);
+}
+
+AclRule::AclRule(AclOrch *pAclOrch, string rule, string table, bool createCounter) :
+        m_pAclOrch(pAclOrch),
+        m_id(rule),
+        m_tableId(table),
+        m_tableOid(SAI_NULL_OBJECT_ID),
+        m_ruleOid(SAI_NULL_OBJECT_ID),
+        m_counterOid(SAI_NULL_OBJECT_ID),
+        m_priority(0),
+        m_createCounter(createCounter)
+{
+    m_tableOid = pAclOrch->getTableById(m_tableId);
+    m_tableType = pAclOrch->getTableByOid(m_tableOid)->type;
 }
 
 bool AclRule::validateAddPriority(string attr_name, string attr_value)
@@ -628,10 +642,7 @@ bool AclRule::remove()
     decreaseNextHopRefCount();
 
     res = removeRanges();
-    if (m_createCounter)
-    {
-        res &= removeCounter();
-    }
+    res &= removeCounter();
 
     return res;
 }
@@ -765,12 +776,83 @@ shared_ptr<AclRule> AclRule::makeShared(acl_table_type_t type, AclOrch *acl, Mir
     throw runtime_error("Wrong combination of table type and action in rule " + rule);
 }
 
+bool AclRule::enableCounter()
+{
+    SWSS_LOG_ENTER();
+
+    sai_status_t status = SAI_STATUS_SUCCESS;
+
+    sai_attribute_t attr;
+    vector<sai_attribute_t> attr_list;
+
+    if (m_ruleOid == SAI_NULL_OBJECT_ID)
+    {
+        SWSS_LOG_ERROR("Rule %s doesn't exist in table %s", m_id.c_str(), m_tableId.c_str());
+        return false;
+    }
+
+    if (m_counterOid == SAI_NULL_OBJECT_ID)
+    {
+        if (!createCounter())
+        {
+            return false;
+        }
+    }
+
+    attr.id = SAI_ACL_ENTRY_ATTR_ACTION_COUNTER;
+    attr.value.aclaction.parameter.oid = m_counterOid;
+    attr.value.aclaction.enable = true;
+    attr_list.push_back(attr);
+
+    status = sai_acl_api->set_acl_entry_attribute(m_ruleOid, &attr);
+    if (status != SAI_STATUS_SUCCESS)
+    {
+        SWSS_LOG_ERROR("Failed to enable counter for the rule %s in table %s", m_id.c_str(), m_tableId.c_str());
+        return false;
+    }
+
+    return true;
+}
+
+bool AclRule::disableCounter()
+{
+    SWSS_LOG_ENTER();
+
+    sai_status_t status = SAI_STATUS_SUCCESS;
+
+    sai_attribute_t attr;
+
+    if (m_ruleOid == SAI_NULL_OBJECT_ID)
+    {
+        SWSS_LOG_ERROR("Rule %s doesn't exist in table %s", m_id.c_str(), m_tableId.c_str());
+        return false;
+    }
+
+    attr.id = SAI_ACL_ENTRY_ATTR_ACTION_COUNTER;
+    attr.value.aclaction.parameter.oid = SAI_NULL_OBJECT_ID;
+    attr.value.aclaction.enable = false;
+
+    status = sai_acl_api->set_acl_entry_attribute(m_ruleOid, &attr);
+    if (status != SAI_STATUS_SUCCESS)
+    {
+        SWSS_LOG_ERROR("Failed to disable counter for the rule %s in table %s", m_id.c_str(), m_tableId.c_str());
+        return false;
+    }
+
+    return true;
+}
+
 bool AclRule::createCounter()
 {
     SWSS_LOG_ENTER();
 
     sai_attribute_t attr;
     vector<sai_attribute_t> counter_attrs;
+
+    if (m_counterOid != SAI_NULL_OBJECT_ID)
+    {
+        return true;
+    }
 
     attr.id = SAI_ACL_COUNTER_ATTR_TABLE_ID;
     attr.value.oid = m_tableOid;
@@ -1337,6 +1419,176 @@ bool AclRuleMclag::validate()
     return true;
 }
 
+AclRulePbh::AclRulePbh(AclOrch *pAclOrch, string rule, string table, bool createCounter) :
+    AclRule(pAclOrch, rule, table, createCounter)
+{
+}
+
+bool AclRulePbh::validateAddPriority(const sai_uint32_t &value)
+{
+    if ((value < m_minPriority) || (value > m_maxPriority))
+    {
+        SWSS_LOG_ERROR("Failed to validate priority: invalid value %d", value);
+        return false;
+    }
+
+    m_priority = value;
+
+    return true;
+}
+
+bool AclRulePbh::validateAddMatch(const sai_attribute_t &attr)
+{
+    bool validate = false;
+
+    auto attrId = static_cast<sai_acl_entry_attr_t>(attr.id);
+    auto attrName = sai_serialize_enum(attrId, &sai_metadata_enum_sai_acl_entry_attr_t);
+
+    switch (attrId)
+    {
+        case SAI_ACL_ENTRY_ATTR_FIELD_GRE_KEY:
+        case SAI_ACL_ENTRY_ATTR_FIELD_IP_PROTOCOL:
+        case SAI_ACL_ENTRY_ATTR_FIELD_IPV6_NEXT_HEADER:
+        case SAI_ACL_ENTRY_ATTR_FIELD_L4_DST_PORT:
+        case SAI_ACL_ENTRY_ATTR_FIELD_INNER_ETHER_TYPE:
+            validate = true;
+            break;
+
+        default:
+            break;
+    }
+
+    if (!validate)
+    {
+        SWSS_LOG_ERROR("Failed to validate match field: invalid attribute %s", attrName.c_str());
+        return false;
+    }
+
+    m_matches[attrId] = attr.value;
+
+    return true;
+}
+
+bool AclRulePbh::validateAddAction(const sai_attribute_t &attr)
+{
+    bool validate = false;
+
+    auto attrId = static_cast<sai_acl_entry_attr_t>(attr.id);
+    auto attrName = sai_serialize_enum(attrId, &sai_metadata_enum_sai_acl_entry_attr_t);
+
+    switch (attrId)
+    {
+        case SAI_ACL_ENTRY_ATTR_ACTION_SET_ECMP_HASH_ID:
+        case SAI_ACL_ENTRY_ATTR_ACTION_SET_LAG_HASH_ID:
+            validate = true;
+            break;
+
+        default:
+            break;
+    }
+
+    if (!validate)
+    {
+        SWSS_LOG_ERROR("Failed to validate action field: invalid attribute %s", attrName.c_str());
+        return false;
+    }
+
+    if (!AclRule::isActionSupported(attrId))
+    {
+        SWSS_LOG_ERROR("Action %s is not supported by ASIC", attrName.c_str());
+        return false;
+    }
+
+    m_actions[attrId] = attr.value;
+
+    return true;
+}
+
+bool AclRulePbh::validate()
+{
+    SWSS_LOG_ENTER();
+
+    if (m_matches.size() == 0 || m_actions.size() != 1)
+    {
+        SWSS_LOG_ERROR("Failed to validate rule: invalid parameters");
+        return false;
+    }
+
+    return true;
+}
+
+void AclRulePbh::update(SubjectType, void *)
+{
+    // Do nothing
+}
+
+bool AclTable::validateAddType(const acl_table_type_t &value)
+{
+    SWSS_LOG_ENTER();
+
+    if (value == ACL_TABLE_MIRROR || value == ACL_TABLE_MIRRORV6)
+    {
+        auto it = m_pAclOrch->m_mirrorTableCapabilities.find(value);
+
+        if (it == m_pAclOrch->m_mirrorTableCapabilities.end() || !m_pAclOrch->m_mirrorTableCapabilities[value])
+        {
+            SWSS_LOG_ERROR("Mirror table is not supported");
+            return false;
+        }
+    }
+
+    type = value;
+
+    return true;
+}
+
+bool AclTable::validateAddStage(const acl_stage_type_t &value)
+{
+    if (value == ACL_STAGE_UNKNOWN)
+    {
+        SWSS_LOG_ERROR("Failed to validate stage: unknown stage");
+        return false;
+    }
+
+    stage = value;
+
+    return true;
+}
+
+bool AclTable::validateAddPorts(const unordered_set<string> &value)
+{
+    SWSS_LOG_ENTER();
+
+    for (const auto &itAlias: value)
+    {
+        Port port;
+        if (!gPortsOrch->getPort(itAlias, port))
+        {
+            SWSS_LOG_INFO(
+                "Add unready port %s to pending list for ACL table %s",
+                itAlias.c_str(), id.c_str()
+            );
+            pendingPortSet.emplace(itAlias);
+            continue;
+        }
+
+        sai_object_id_t bindPortOid;
+        if (!AclOrch::getAclBindPortId(port, bindPortOid))
+        {
+            SWSS_LOG_ERROR(
+                "Failed to get port %s bind port ID for ACL table %s",
+                itAlias.c_str(), id.c_str()
+            );
+            return false;
+        }
+
+        link(bindPortOid);
+        portSet.emplace(itAlias);
+    }
+
+    return true;
+}
+
 bool AclTable::validate()
 {
     if (type == ACL_TABLE_CTRLPLANE)
@@ -1370,6 +1622,43 @@ bool AclTable::create()
     attr.value.s32list.count = static_cast<uint32_t>(bpoint_list.size());
     attr.value.s32list.list = bpoint_list.data();
     table_attrs.push_back(attr);
+
+    if (type == ACL_TABLE_PBH)
+    {
+        attr.id = SAI_ACL_TABLE_ATTR_ACL_STAGE;
+        attr.value.s32 = SAI_ACL_STAGE_INGRESS;
+        table_attrs.push_back(attr);
+
+        attr.id = SAI_ACL_TABLE_ATTR_FIELD_GRE_KEY;
+        attr.value.booldata = true;
+        table_attrs.push_back(attr);
+
+        attr.id = SAI_ACL_TABLE_ATTR_FIELD_IP_PROTOCOL;
+        attr.value.booldata = true;
+        table_attrs.push_back(attr);
+
+        attr.id = SAI_ACL_TABLE_ATTR_FIELD_IPV6_NEXT_HEADER;
+        attr.value.booldata = true;
+        table_attrs.push_back(attr);
+
+        attr.id = SAI_ACL_TABLE_ATTR_FIELD_L4_DST_PORT;
+        attr.value.booldata = true;
+        table_attrs.push_back(attr);
+
+        attr.id = SAI_ACL_TABLE_ATTR_FIELD_INNER_ETHER_TYPE;
+        attr.value.booldata = true;
+        table_attrs.push_back(attr);
+
+        sai_status_t status = sai_acl_api->create_acl_table(&m_oid, gSwitchId, (uint32_t)table_attrs.size(), table_attrs.data());
+
+        if (status == SAI_STATUS_SUCCESS)
+        {
+            gCrmOrch->incCrmAclUsedCounter(CrmResourceType::CRM_ACL_TABLE, SAI_ACL_STAGE_INGRESS, SAI_ACL_BIND_POINT_TYPE_PORT);
+            gCrmOrch->incCrmAclUsedCounter(CrmResourceType::CRM_ACL_TABLE, SAI_ACL_STAGE_INGRESS, SAI_ACL_BIND_POINT_TYPE_LAG);
+        }
+
+        return status == SAI_STATUS_SUCCESS;
+    }
 
     if ((type == ACL_TABLE_PFCWD) || (type == ACL_TABLE_DROP))
     {
@@ -2763,6 +3052,33 @@ bool AclOrch::updateAclTable(AclTable &currentTable, AclTable &newTable)
     if (!updateAclTablePorts(newTable, currentTable))
     {
         SWSS_LOG_ERROR("Failed to update ACL table port list");
+        return false;
+    }
+
+    return true;
+}
+
+bool AclOrch::updateAclTable(const string &tableId, AclTable &table)
+{
+    SWSS_LOG_ENTER();
+
+    auto tableOid = getTableById(tableId);
+    if (tableOid == SAI_NULL_OBJECT_ID)
+    {
+        SWSS_LOG_ERROR("Failed to update existing ACL table %s: NULL object ID", tableId.c_str());
+        return false;
+    }
+
+    const auto &cit = m_AclTables.find(tableOid);
+    if (cit == m_AclTables.cend())
+    {
+        SWSS_LOG_ERROR("Failed to update existing ACL table %s: object doesn't exist", tableId.c_str());
+        return false;
+    }
+
+    if (!updateAclTable(m_AclTables.at(tableOid), table))
+    {
+        SWSS_LOG_ERROR("Failed to update existing ACL table %s", tableId.c_str());
         return false;
     }
 

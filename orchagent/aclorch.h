@@ -154,7 +154,8 @@ struct AclRuleCounters
 class AclRule
 {
 public:
-    AclRule(AclOrch *m_pAclOrch, string rule, string table, acl_table_type_t type, bool createCounter = true);
+    AclRule(AclOrch *pAclOrch, string rule, string table, acl_table_type_t type, bool createCounter = true);
+    AclRule(AclOrch *pAclOrch, string rule, string table, bool createCounter);
     virtual bool validateAddPriority(string attr_name, string attr_value);
     virtual bool validateAddMatch(string attr_name, string attr_value);
     virtual bool validateAddAction(string attr_name, string attr_value);
@@ -170,6 +171,9 @@ public:
     virtual bool remove();
     virtual void update(SubjectType, void *) = 0;
     virtual void updateInPorts();
+
+    virtual bool enableCounter();
+    virtual bool disableCounter();
     virtual AclRuleCounters getCounters();
 
     string getId()
@@ -316,9 +320,20 @@ public:
     bool validate();
 };
 
-class AclTable {
-    sai_object_id_t m_oid;
-    AclOrch *m_pAclOrch;
+class AclRulePbh: public AclRule
+{
+public:
+    AclRulePbh(AclOrch *pAclOrch, string rule, string table, bool createCounter = false);
+
+    bool validateAddPriority(const sai_uint32_t &value);
+    bool validateAddMatch(const sai_attribute_t &attr);
+    bool validateAddAction(const sai_attribute_t &attr);
+    bool validate() override;
+    void update(SubjectType, void *) override;
+};
+
+class AclTable
+{
 public:
     string id;
     string description;
@@ -348,8 +363,23 @@ public:
         , stage(ACL_STAGE_INGRESS)
     {}
 
+    AclTable(AclOrch *aclOrch, string id)
+        : m_pAclOrch(aclOrch)
+        , id(id)
+        , type(ACL_TABLE_UNKNOWN)
+        , m_oid(SAI_NULL_OBJECT_ID)
+        , stage(ACL_STAGE_INGRESS)
+    {}
+
     sai_object_id_t getOid() { return m_oid; }
     string getId() { return id; }
+
+    void setDescription(const string &value) { description = value; }
+    const string& getDescription() const { return description; }
+
+    bool validateAddType(const acl_table_type_t &value);
+    bool validateAddStage(const acl_stage_type_t &value);
+    bool validateAddPorts(const unordered_set<string> &value);
     bool validate();
     bool create();
 
@@ -373,6 +403,10 @@ public:
     bool clear();
     // Update table subject to changes
     void update(SubjectType, void *);
+
+private:
+    sai_object_id_t m_oid;
+    AclOrch *m_pAclOrch;
 };
 
 class AclOrch : public Orch, public Observer
@@ -405,6 +439,7 @@ public:
     bool addAclTable(AclTable &aclTable);
     bool removeAclTable(string table_id);
     bool updateAclTable(AclTable &currentTable, AclTable &newTable);
+    bool updateAclTable(const string &tableId, AclTable &table);
     bool addAclRule(shared_ptr<AclRule> aclRule, string table_id);
     bool removeAclRule(string table_id, string rule_id);
     bool updateAclRule(string table_id, string rule_id, string attr_name, void *data, bool oper);
