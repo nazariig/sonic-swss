@@ -324,10 +324,6 @@ bool OrchDaemon::init()
     TableConnector cfgDbPbhHashTable(m_configDb, CFG_PBH_HASH_TABLE_NAME);
     TableConnector cfgDbPbhHashFieldTable(m_configDb, CFG_PBH_HASH_FIELD_TABLE_NAME);
 
-    //TableConnector appDbPbhTable(m_applDb, APP_PBH_TABLE_TABLE_NAME);
-    //TableConnector appDbPbhRuleTable(m_applDb, APP_PBH_RULE_TABLE_NAME);
-    //TableConnector appDbPbhHashTable(m_applDb, APP_PBH_HASH_TABLE_NAME);
-
     vector<TableConnector> pbhTableConnectorList = {
         cfgDbPbhTable,
         cfgDbPbhRuleTable,

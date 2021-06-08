@@ -10,7 +10,6 @@
 #include "ipaddress.h"
 #include "converter.h"
 #include "tokenize.h"
-#include "schema.h"
 #include "logger.h"
 
 #include "pbhmgr.h"
@@ -77,7 +76,7 @@ static const std::unordered_map<std::string, sai_native_hash_field_t> pbhHashFie
     { PBH_HASH_FIELD_HASH_FIELD_INNER_SRC_IPV6,    SAI_NATIVE_HASH_FIELD_INNER_SRC_IPV6    }
 };
 
-// implementation -----------------------------------------------------------------------------------------------------
+// PBH manager  -------------------------------------------------------------------------------------------------------
 
 std::uint8_t PbhManager::toUInt8(const std::string &hexStr)
 {
@@ -744,6 +743,7 @@ bool PbhManager::parsePbhRuleFlowCounter(PbhRule &rule, const std::string &field
         return false;
     }
 
+    rule.flow_counter.name = field;
     rule.flow_counter.value = pbhRuleFlowCounterMap.at(value);
     rule.flow_counter.is_set = true;
 
@@ -1024,6 +1024,7 @@ bool PbhManager::validatePbhRule(PbhRule &rule) const
             PBH_RULE_FLOW_COUNTER,
             PBH_RULE_FLOW_COUNTER_DISABLED
         );
+        rule.flow_counter.name = PBH_RULE_FLOW_COUNTER;
         rule.flow_counter.value = false;
         rule.flow_counter.is_set = true;
     }

@@ -668,7 +668,7 @@ AclRuleCounters AclRule::getCounters()
 {
     SWSS_LOG_ENTER();
 
-    if (!m_createCounter)
+    if (m_counterOid == SAI_NULL_OBJECT_ID)
     {
         return AclRuleCounters();
     }
@@ -780,34 +780,27 @@ bool AclRule::enableCounter()
 {
     SWSS_LOG_ENTER();
 
-    sai_status_t status = SAI_STATUS_SUCCESS;
-
-    sai_attribute_t attr;
-    vector<sai_attribute_t> attr_list;
-
     if (m_ruleOid == SAI_NULL_OBJECT_ID)
     {
-        SWSS_LOG_ERROR("Rule %s doesn't exist in table %s", m_id.c_str(), m_tableId.c_str());
+        SWSS_LOG_ERROR("ACL rule %s doesn't exist in ACL table %s", m_id.c_str(), m_tableId.c_str());
         return false;
     }
 
-    if (m_counterOid == SAI_NULL_OBJECT_ID)
+    if (!createCounter())
     {
-        if (!createCounter())
-        {
-            return false;
-        }
+        return false;
     }
+
+    sai_attribute_t attr;
 
     attr.id = SAI_ACL_ENTRY_ATTR_ACTION_COUNTER;
     attr.value.aclaction.parameter.oid = m_counterOid;
     attr.value.aclaction.enable = true;
-    attr_list.push_back(attr);
 
-    status = sai_acl_api->set_acl_entry_attribute(m_ruleOid, &attr);
+    sai_status_t status = sai_acl_api->set_acl_entry_attribute(m_ruleOid, &attr);
     if (status != SAI_STATUS_SUCCESS)
     {
-        SWSS_LOG_ERROR("Failed to enable counter for the rule %s in table %s", m_id.c_str(), m_tableId.c_str());
+        SWSS_LOG_ERROR("Failed to enable counter for ACL rule %s in ACL table %s", m_id.c_str(), m_tableId.c_str());
         return false;
     }
 
@@ -818,24 +811,27 @@ bool AclRule::disableCounter()
 {
     SWSS_LOG_ENTER();
 
-    sai_status_t status = SAI_STATUS_SUCCESS;
-
-    sai_attribute_t attr;
-
     if (m_ruleOid == SAI_NULL_OBJECT_ID)
     {
-        SWSS_LOG_ERROR("Rule %s doesn't exist in table %s", m_id.c_str(), m_tableId.c_str());
+        SWSS_LOG_ERROR("ACL rule %s doesn't exist in ACL table %s", m_id.c_str(), m_tableId.c_str());
         return false;
     }
+
+    sai_attribute_t attr;
 
     attr.id = SAI_ACL_ENTRY_ATTR_ACTION_COUNTER;
     attr.value.aclaction.parameter.oid = SAI_NULL_OBJECT_ID;
     attr.value.aclaction.enable = false;
 
-    status = sai_acl_api->set_acl_entry_attribute(m_ruleOid, &attr);
+    sai_status_t status = sai_acl_api->set_acl_entry_attribute(m_ruleOid, &attr);
     if (status != SAI_STATUS_SUCCESS)
     {
-        SWSS_LOG_ERROR("Failed to disable counter for the rule %s in table %s", m_id.c_str(), m_tableId.c_str());
+        SWSS_LOG_ERROR("Failed to disable counter for ACL rule %s in ACL table %s", m_id.c_str(), m_tableId.c_str());
+        return false;
+    }
+
+    if (!removeCounter())
+    {
         return false;
     }
 
@@ -1426,6 +1422,8 @@ AclRulePbh::AclRulePbh(AclOrch *pAclOrch, string rule, string table, bool create
 
 bool AclRulePbh::validateAddPriority(const sai_uint32_t &value)
 {
+    SWSS_LOG_ENTER();
+
     if ((value < m_minPriority) || (value > m_maxPriority))
     {
         SWSS_LOG_ERROR("Failed to validate priority: invalid value %d", value);
@@ -1439,6 +1437,8 @@ bool AclRulePbh::validateAddPriority(const sai_uint32_t &value)
 
 bool AclRulePbh::validateAddMatch(const sai_attribute_t &attr)
 {
+    SWSS_LOG_ENTER();
+
     bool validate = false;
 
     auto attrId = static_cast<sai_acl_entry_attr_t>(attr.id);
@@ -1471,6 +1471,8 @@ bool AclRulePbh::validateAddMatch(const sai_attribute_t &attr)
 
 bool AclRulePbh::validateAddAction(const sai_attribute_t &attr)
 {
+    SWSS_LOG_ENTER();
+
     bool validate = false;
 
     auto attrId = static_cast<sai_acl_entry_attr_t>(attr.id);
@@ -1532,7 +1534,7 @@ bool AclTable::validateAddType(const acl_table_type_t &value)
 
         if (it == m_pAclOrch->m_mirrorTableCapabilities.end() || !m_pAclOrch->m_mirrorTableCapabilities[value])
         {
-            SWSS_LOG_ERROR("Mirror table is not supported");
+            SWSS_LOG_ERROR("Failed to validate type: mirror table is not supported");
             return false;
         }
     }
@@ -1544,6 +1546,8 @@ bool AclTable::validateAddType(const acl_table_type_t &value)
 
 bool AclTable::validateAddStage(const acl_stage_type_t &value)
 {
+    SWSS_LOG_ENTER();
+
     if (value == ACL_STAGE_UNKNOWN)
     {
         SWSS_LOG_ERROR("Failed to validate stage: unknown stage");
@@ -3058,27 +3062,20 @@ bool AclOrch::updateAclTable(AclTable &currentTable, AclTable &newTable)
     return true;
 }
 
-bool AclOrch::updateAclTable(const string &tableId, AclTable &table)
+bool AclOrch::updateAclTable(string table_id, AclTable &table)
 {
     SWSS_LOG_ENTER();
 
-    auto tableOid = getTableById(tableId);
+    auto tableOid = getTableById(table_id);
     if (tableOid == SAI_NULL_OBJECT_ID)
     {
-        SWSS_LOG_ERROR("Failed to update existing ACL table %s: NULL object ID", tableId.c_str());
-        return false;
-    }
-
-    const auto &cit = m_AclTables.find(tableOid);
-    if (cit == m_AclTables.cend())
-    {
-        SWSS_LOG_ERROR("Failed to update existing ACL table %s: object doesn't exist", tableId.c_str());
+        SWSS_LOG_ERROR("Failed to update ACL table %s: object doesn't exist", table_id.c_str());
         return false;
     }
 
     if (!updateAclTable(m_AclTables.at(tableOid), table))
     {
-        SWSS_LOG_ERROR("Failed to update existing ACL table %s", tableId.c_str());
+        SWSS_LOG_ERROR("Failed to update ACL table %s", table_id.c_str());
         return false;
     }
 
@@ -3360,6 +3357,62 @@ bool AclOrch::updateAclRule(string table_id, string rule_id, string attr_name, v
         default:
             SWSS_LOG_ERROR("Acl rule update not supported for attr name %s", attr_name.c_str());
         break;
+    }
+
+    return true;
+}
+
+bool AclOrch::updateAclRule(string table_id, string rule_id, bool enableCounter)
+{
+    SWSS_LOG_ENTER();
+
+    auto tableOid = getTableById(table_id);
+    if (tableOid == SAI_NULL_OBJECT_ID)
+    {
+        SWSS_LOG_ERROR(
+            "Failed to update ACL rule %s: ACL table %s doesn't exist",
+            rule_id.c_str(),
+            table_id.c_str()
+        );
+        return false;
+    }
+
+    const auto &cit = m_AclTables.at(tableOid).rules.find(rule_id);
+    if (cit == m_AclTables.at(tableOid).rules.cend())
+    {
+        SWSS_LOG_ERROR(
+            "Failed to update ACL rule %s in ACL table %s: object doesn't exist",
+            rule_id.c_str(),
+            table_id.c_str()
+        );
+        return false;
+    }
+
+    auto &rule = cit->second;
+
+    if (enableCounter)
+    {
+        if (!rule->enableCounter())
+        {
+            SWSS_LOG_ERROR(
+                "Failed to enable ACL counter for ACL rule %s in ACL table %s",
+                rule_id.c_str(),
+                table_id.c_str()
+            );
+            return false;
+        }
+
+        return true;
+    }
+
+    if (!rule->disableCounter())
+    {
+        SWSS_LOG_ERROR(
+            "Failed to disable ACL counter for ACL rule %s in ACL table %s",
+            rule_id.c_str(),
+            table_id.c_str()
+        );
+        return false;
     }
 
     return true;

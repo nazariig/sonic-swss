@@ -2,16 +2,18 @@
 
 #include <cstring>
 
+#include <algorithm>
+#include <iterator>
+#include <utility>
 #include <memory>
+#include <string>
 #include <vector>
+#include <set>
 
 #include "pbhorch.h"
 
-//##include <cstddef>
-//##include <cstdint>
-
-//#include <sstream>
-#include <string>
+template<typename K, typename V>
+using umap_t = std::unordered_map<K, V>;
 
 using namespace swss;
 
@@ -20,7 +22,45 @@ using namespace swss;
 extern sai_hash_api_t *sai_hash_api;
 extern sai_object_id_t gSwitchId;
 
-// implementation -----------------------------------------------------------------------------------------------------
+// helpers ------------------------------------------------------------------------------------------------------------
+
+template<typename K, typename V>
+static inline std::set<K> uMapToKeySet(const umap_t<K, V> &uMap)
+{
+    std::set<K> s;
+
+    std::transform(
+        uMap.cbegin(),
+        uMap.cend(),
+        std::inserter(s, s.begin()),
+        [](const std::pair<K, V> &p) {
+            return p.first;
+        }
+    );
+
+    return s;
+}
+
+template<typename K, typename V>
+static inline std::vector<K> uMapDiffByKey(const umap_t<K, V> &uMap1, const umap_t<K, V> &uMap2)
+{
+    std::vector<K> v;
+
+    const auto &s1 = uMapToKeySet(uMap1);
+    const auto &s2 = uMapToKeySet(uMap2);
+
+    std::set_symmetric_difference(
+        s1.cbegin(),
+        s1.cend(),
+        s2.cbegin(),
+        s2.cend(),
+        std::back_inserter(v)
+    );
+
+    return v;
+}
+
+// PBH OA -------------------------------------------------------------------------------------------------------------
 
 PbhOrch::PbhOrch(
     std::vector<TableConnector> &connectorList,
@@ -37,7 +77,7 @@ PbhOrch::~PbhOrch()
 
 }
 
-// PBH Table ----------------------------------------------------------------------------------------------------------
+// PBH table ----------------------------------------------------------------------------------------------------------
 
 bool PbhOrch::createPbhTable(const PbhTable &table)
 {
@@ -258,7 +298,7 @@ void PbhOrch::deployPbhTableRemoveTasks()
     }
 }
 
-// PBH RULE -----------------------------------------------------------------------------------------------------------
+// PBH rule -----------------------------------------------------------------------------------------------------------
 
 bool PbhOrch::createPbhRule(const PbhRule &rule)
 {
@@ -433,9 +473,60 @@ bool PbhOrch::updatePbhRule(const PbhRule &rule)
         return false;
     }
 
-    SWSS_LOG_ERROR("Failed to update PBH rule(%s) in HW: operation is prohibited", rule.key.c_str());
+    if (!uMapDiffByKey(rObj.fieldValueMap, rule.fieldValueMap).empty())
+    {
+        SWSS_LOG_ERROR("Failed to update PBH rule(%s) in HW: fields add/remove is prohibited", rule.key.c_str());
+        return false;
+    }
 
-    return false;
+    bool flowCounterUpdate = false;
+
+    for (const auto &oCit : rObj.fieldValueMap)
+    {
+        const auto &field = oCit.first;
+
+        const auto &oValue = oCit.second;
+        const auto &nValue = rule.fieldValueMap.at(field);
+
+        if (oValue == nValue)
+        {
+            continue;
+        }
+
+        if (field != rule.flow_counter.name)
+        {
+            SWSS_LOG_ERROR(
+                "Failed to update PBH rule(%s) in HW: field(%s) update is prohibited",
+                rule.key.c_str(),
+                field.c_str()
+            );
+            return false;
+        }
+
+        flowCounterUpdate = true;
+    }
+
+    if (!flowCounterUpdate)
+    {
+        SWSS_LOG_NOTICE("PBH rule(%s) in HW is up-to-date", rule.key.c_str());
+        return true;
+    }
+
+    if (!this->aclOrch->updateAclRule(rule.table, rule.name, rule.flow_counter.value))
+    {
+        SWSS_LOG_ERROR("Failed to update PBH rule(%s) in HW", rule.key.c_str());
+        return false;
+    }
+
+    if (!this->pbhMgr.updatePbhRule(rule))
+    {
+        SWSS_LOG_ERROR("Failed to update PBH rule(%s) in internal cache", rule.key.c_str());
+        return false;
+    }
+
+    SWSS_LOG_NOTICE("Updated PBH rule(%s) in HW", rule.key.c_str());
+
+    return true;
 }
 
 bool PbhOrch::removePbhRule(const PbhRule &rule)
@@ -555,7 +646,7 @@ void PbhOrch::deployPbhRuleRemoveTasks()
     }
 }
 
-// PBH Hash -----------------------------------------------------------------------------------------------------------
+// PBH hash -----------------------------------------------------------------------------------------------------------
 
 bool PbhOrch::createPbhHash(const PbhHash &hash)
 {
@@ -779,7 +870,7 @@ void PbhOrch::deployPbhHashRemoveTasks()
     }
 }
 
-// PBH HASH FIELD -----------------------------------------------------------------------------------------------------
+// PBH hash field -----------------------------------------------------------------------------------------------------
 
 bool PbhOrch::createPbhHashField(const PbhHashField &hashField)
 {
@@ -992,7 +1083,7 @@ void PbhOrch::deployPbhHashFieldRemoveTasks()
     }
 }
 
-// tasks --------------------------------------------------------------------------------------------------------------
+// PBH task -----------------------------------------------------------------------------------------------------------
 
 void PbhOrch::doPbhTableTask(Consumer &consumer)
 {

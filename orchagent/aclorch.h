@@ -439,10 +439,11 @@ public:
     bool addAclTable(AclTable &aclTable);
     bool removeAclTable(string table_id);
     bool updateAclTable(AclTable &currentTable, AclTable &newTable);
-    bool updateAclTable(const string &tableId, AclTable &table);
+    bool updateAclTable(string table_id, AclTable &table);
     bool addAclRule(shared_ptr<AclRule> aclRule, string table_id);
     bool removeAclRule(string table_id, string rule_id);
     bool updateAclRule(string table_id, string rule_id, string attr_name, void *data, bool oper);
+    bool updateAclRule(string table_id, string rule_id, bool enableCounter);
     AclRule* getAclRule(string table_id, string rule_id);
 
     bool isCombinedMirrorV6Table();

@@ -1,29 +1,14 @@
 #ifndef SWSS_PBHMGR_H
 #define SWSS_PBHMGR_H
 
-//#include <sstream>
-//#include <string>
-//#include <tuple>
-//#include <map>
-
-//#include "orch.h"
-//#include "switchorch.h"
-//#include "portsorch.h"
-//#include "observer.h"
-
-
-//#include "tokenize.h"
-
-
-#include <string>
-//#include <unordered_map>
-//#include <unordered_set>
-
 #include "pbhcnt.h"
 
 class PbhManager
 {
 public:
+    PbhManager() = default;
+    ~PbhManager() = default;
+
     static std::uint8_t toUInt8(const std::string &hexStr);
     static std::uint16_t toUInt16(const std::string &hexStr);
     static std::uint32_t toUInt32(const std::string &hexStr);

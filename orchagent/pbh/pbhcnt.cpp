@@ -1,35 +1,12 @@
-// Includes -----------------------------------------------------------------------------------------------------------
+// includes -----------------------------------------------------------------------------------------------------------
 
 #include <limits>
-#include <string>
 
 #include "pbhcnt.h"
 
 using namespace swss;
 
-//----
-
-//##include <cstddef>
-//##include <cstdint>
-//#include <cstring>
-
-//#include <unordered_map>
-//#include <sstream>
-
-
-//#include <vector>
-
-//#include "aclorch"
-
-
-
-//#include "ipaddress.h"
-//#include "tokenize.h"
-
-
-
-
-// PBH Container ------------------------------------------------------------------------------------------------------
+// PBH container ------------------------------------------------------------------------------------------------------
 
 PbhContainer::PbhContainer(const std::string &key, const std::string &op) noexcept
 {
@@ -67,7 +44,7 @@ void PbhContainer::clearRefCount()
     this->refCount = 0;
 }
 
-// PBH Table ----------------------------------------------------------------------------------------------------------
+// PBH table ----------------------------------------------------------------------------------------------------------
 
 PbhTable::PbhTable(const std::string &key, const std::string &op) noexcept :
     PbhContainer(key, op)
@@ -75,7 +52,7 @@ PbhTable::PbhTable(const std::string &key, const std::string &op) noexcept :
 
 }
 
-// PBH Rule -----------------------------------------------------------------------------------------------------------
+// PBH rule -----------------------------------------------------------------------------------------------------------
 
 PbhRule::PbhRule(const std::string &key, const std::string &op) noexcept :
     PbhContainer(key, op)
@@ -83,7 +60,7 @@ PbhRule::PbhRule(const std::string &key, const std::string &op) noexcept :
 
 }
 
-// PBH Hash -----------------------------------------------------------------------------------------------------------
+// PBH hash -----------------------------------------------------------------------------------------------------------
 
 PbhHash::PbhHash(const std::string &key, const std::string &op) noexcept :
     PbhContainer(key, op)
