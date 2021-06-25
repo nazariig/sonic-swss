@@ -12,7 +12,7 @@ PBH_HASH_HASH_FIELD_LIST = ["inner_ip_proto"]
 PBH_RULE_NAME = "nvgre"
 PBH_RULE_PRIORITY = "1"
 PBH_RULE_GRE_KEY = "0x2500/0xffffff00"
-PBH_RULE_INNER_ETHER_TYPE = "0x86dd/0xffff"
+PBH_RULE_INNER_ETHER_TYPE = "0x86dd"
 PBH_RULE_HASH = "inner_v4_hash"
 
 PBH_TABLE_NAME = "pbh_table"
@@ -24,32 +24,47 @@ logging.basicConfig(level=logging.INFO)
 pbhlogger = logging.getLogger(__name__)
 
 
+@pytest.fixture(autouse=True, scope="class")
+def dvs_api(request, dvs_pbh, dvs_acl):
+    # Fixtures are created when first requested by a test, and are destroyed based on their scope
+    if request.cls is None:
+        yield
+        return
+    pbhlogger.info("Initialize DVS API: PBH, ACL")
+    request.cls.dvs_pbh = dvs_pbh
+    request.cls.dvs_acl = dvs_acl
+    yield
+    pbhlogger.info("Deinitialize DVS API: PBH, ACL")
+    del request.cls.dvs_pbh
+    del request.cls.dvs_acl
+
+
 @pytest.mark.usefixtures("dvs_lag_manager")
 class TestPbhInterfaceBinding:
-    def test_PbhTablePortBinding(self, testlog, dvs_pbh, dvs_acl):
+    def test_PbhTablePortBinding(self, testlog):
         try:
             port_list = ["Ethernet0", "Ethernet4"]
 
             pbhlogger.info("Create PBH table: {}".format(PBH_TABLE_NAME))
-            dvs_pbh.create_pbh_table(
+            self.dvs_pbh.create_pbh_table(
                 table_name=PBH_TABLE_NAME,
                 interface_list=port_list,
                 description=PBH_TABLE_DESCRIPTION
             )
-            dvs_acl.verify_acl_table_count(1)
+            self.dvs_acl.verify_acl_table_count(1)
 
             pbhlogger.info("Validate PBH table port binding: {}".format(",".join(port_list)))
-            acl_table_id = dvs_acl.get_acl_table_ids(1)[0]
-            acl_table_group_ids = dvs_acl.get_acl_table_group_ids(len(port_list))
+            acl_table_id = self.dvs_acl.get_acl_table_ids(1)[0]
+            acl_table_group_ids = self.dvs_acl.get_acl_table_group_ids(len(port_list))
 
-            dvs_acl.verify_acl_table_group_members(acl_table_id, acl_table_group_ids, 1)
-            dvs_acl.verify_acl_table_port_binding(acl_table_id, port_list, 1)
+            self.dvs_acl.verify_acl_table_group_members(acl_table_id, acl_table_group_ids, 1)
+            self.dvs_acl.verify_acl_table_port_binding(acl_table_id, port_list, 1)
         finally:
             pbhlogger.info("Remove PBH table: {}".format(PBH_TABLE_NAME))
-            dvs_pbh.remove_pbh_table(PBH_TABLE_NAME)
-            dvs_acl.verify_acl_table_count(0)
+            self.dvs_pbh.remove_pbh_table(PBH_TABLE_NAME)
+            self.dvs_acl.verify_acl_table_count(0)
 
-    def test_PbhTablePortChannelBinding(self, testlog, dvs_pbh, dvs_acl):
+    def test_PbhTablePortChannelBinding(self, testlog):
         try:
             # PortChannel0001
             pbhlogger.info("Create LAG: PortChannel0001")
@@ -73,24 +88,24 @@ class TestPbhInterfaceBinding:
             portchannel_list = ["PortChannel0001", "PortChannel0002"]
 
             pbhlogger.info("Create PBH table: {}".format(PBH_TABLE_NAME))
-            dvs_pbh.create_pbh_table(
+            self.dvs_pbh.create_pbh_table(
                 table_name=PBH_TABLE_NAME,
                 interface_list=portchannel_list,
                 description=PBH_TABLE_DESCRIPTION
             )
-            dvs_acl.verify_acl_table_count(1)
+            self.dvs_acl.verify_acl_table_count(1)
 
             pbhlogger.info("Validate PBH table LAG binding: {}".format(",".join(portchannel_list)))
-            acl_table_id = dvs_acl.get_acl_table_ids(1)[0]
-            acl_table_group_ids = dvs_acl.get_acl_table_group_ids(len(portchannel_list))
+            acl_table_id = self.dvs_acl.get_acl_table_ids(1)[0]
+            acl_table_group_ids = self.dvs_acl.get_acl_table_group_ids(len(portchannel_list))
 
-            dvs_acl.verify_acl_table_group_members(acl_table_id, acl_table_group_ids, 1)
-            dvs_acl.verify_acl_table_portchannel_binding(acl_table_id, portchannel_list, 1)
+            self.dvs_acl.verify_acl_table_group_members(acl_table_id, acl_table_group_ids, 1)
+            self.dvs_acl.verify_acl_table_portchannel_binding(acl_table_id, portchannel_list, 1)
         finally:
             # PBH table
             pbhlogger.info("Remove PBH table: {}".format(PBH_TABLE_NAME))
-            dvs_pbh.remove_pbh_table(PBH_TABLE_NAME)
-            dvs_acl.verify_acl_table_count(0)
+            self.dvs_pbh.remove_pbh_table(PBH_TABLE_NAME)
+            self.dvs_acl.verify_acl_table_count(0)
 
             # PortChannel0001
             pbhlogger.info("Remove LAG member: Ethernet120")
@@ -112,126 +127,126 @@ class TestPbhInterfaceBinding:
 
 
 class TestPbhBasicFlows:
-    def test_PbhHashFieldCreationDeletion(self, testlog, dvs_pbh):
+    def test_PbhHashFieldCreationDeletion(self, testlog):
         try:
             pbhlogger.info("Create PBH hash field: {}".format(PBH_HASH_FIELD_NAME))
-            dvs_pbh.create_pbh_hash_field(
+            self.dvs_pbh.create_pbh_hash_field(
                 hash_field_name=PBH_HASH_FIELD_NAME,
                 hash_field=PBH_HASH_FIELD_HASH_FIELD,
                 sequence_id=PBH_HASH_FIELD_SEQUENCE_ID
             )
-            dvs_pbh.verify_pbh_hash_field_count(1)
+            self.dvs_pbh.verify_pbh_hash_field_count(1)
         finally:
             pbhlogger.info("Remove PBH hash field: {}".format(PBH_HASH_FIELD_NAME))
-            dvs_pbh.remove_pbh_hash_field(PBH_HASH_FIELD_NAME)
-            dvs_pbh.verify_pbh_hash_field_count(0)
+            self.dvs_pbh.remove_pbh_hash_field(PBH_HASH_FIELD_NAME)
+            self.dvs_pbh.verify_pbh_hash_field_count(0)
 
-    def test_PbhHashCreationDeletion(self, testlog, dvs_pbh):
+    def test_PbhHashCreationDeletion(self, testlog):
         try:
             # PBH hash field
             pbhlogger.info("Create PBH hash field: {}".format(PBH_HASH_FIELD_NAME))
-            dvs_pbh.create_pbh_hash_field(
+            self.dvs_pbh.create_pbh_hash_field(
                 hash_field_name=PBH_HASH_FIELD_NAME,
                 hash_field=PBH_HASH_FIELD_HASH_FIELD,
                 sequence_id=PBH_HASH_FIELD_SEQUENCE_ID
             )
-            dvs_pbh.verify_pbh_hash_field_count(1)
+            self.dvs_pbh.verify_pbh_hash_field_count(1)
 
             # PBH hash
             pbhlogger.info("Create PBH hash: {}".format(PBH_HASH_NAME))
-            dvs_pbh.create_pbh_hash(
+            self.dvs_pbh.create_pbh_hash(
                 hash_name=PBH_HASH_NAME,
                 hash_field_list=PBH_HASH_HASH_FIELD_LIST
             )
-            dvs_pbh.verify_pbh_hash_count(1)
+            self.dvs_pbh.verify_pbh_hash_count(1)
         finally:
             # PBH hash
             pbhlogger.info("Remove PBH hash: {}".format(PBH_HASH_NAME))
-            dvs_pbh.remove_pbh_hash(PBH_HASH_NAME)
-            dvs_pbh.verify_pbh_hash_count(0)
+            self.dvs_pbh.remove_pbh_hash(PBH_HASH_NAME)
+            self.dvs_pbh.verify_pbh_hash_count(0)
 
             # PBH hash field
             pbhlogger.info("Remove PBH hash field: {}".format(PBH_HASH_FIELD_NAME))
-            dvs_pbh.remove_pbh_hash_field(PBH_HASH_FIELD_NAME)
-            dvs_pbh.verify_pbh_hash_field_count(0)
+            self.dvs_pbh.remove_pbh_hash_field(PBH_HASH_FIELD_NAME)
+            self.dvs_pbh.verify_pbh_hash_field_count(0)
 
-    def test_PbhTableCreationDeletion(self, testlog, dvs_pbh, dvs_acl):
+    def test_PbhTableCreationDeletion(self, testlog):
         try:
             pbhlogger.info("Create PBH table: {}".format(PBH_TABLE_NAME))
-            dvs_pbh.create_pbh_table(
+            self.dvs_pbh.create_pbh_table(
                 table_name=PBH_TABLE_NAME,
                 interface_list=PBH_TABLE_INTERFACE_LIST,
                 description=PBH_TABLE_DESCRIPTION
             )
-            dvs_acl.verify_acl_table_count(1)
+            self.dvs_acl.verify_acl_table_count(1)
         finally:
             pbhlogger.info("Remove PBH table: {}".format(PBH_TABLE_NAME))
-            dvs_pbh.remove_pbh_table(PBH_TABLE_NAME)
-            dvs_acl.verify_acl_table_count(0)
+            self.dvs_pbh.remove_pbh_table(PBH_TABLE_NAME)
+            self.dvs_acl.verify_acl_table_count(0)
 
-    def test_PbhRuleCreationDeletion(self, testlog, dvs_pbh, dvs_acl):
+    def test_PbhRuleCreationDeletion(self, testlog):
         try:
             # PBH hash field
             pbhlogger.info("Create PBH hash field: {}".format(PBH_HASH_FIELD_NAME))
-            dvs_pbh.create_pbh_hash_field(
+            self.dvs_pbh.create_pbh_hash_field(
                 hash_field_name=PBH_HASH_FIELD_NAME,
                 hash_field=PBH_HASH_FIELD_HASH_FIELD,
                 sequence_id=PBH_HASH_FIELD_SEQUENCE_ID
             )
-            dvs_pbh.verify_pbh_hash_field_count(1)
+            self.dvs_pbh.verify_pbh_hash_field_count(1)
 
             # PBH hash
             pbhlogger.info("Create PBH hash: {}".format(PBH_HASH_NAME))
-            dvs_pbh.create_pbh_hash(
+            self.dvs_pbh.create_pbh_hash(
                 hash_name=PBH_HASH_NAME,
                 hash_field_list=PBH_HASH_HASH_FIELD_LIST
             )
-            dvs_pbh.verify_pbh_hash_count(1)
+            self.dvs_pbh.verify_pbh_hash_count(1)
 
             # PBH table
             pbhlogger.info("Create PBH table: {}".format(PBH_TABLE_NAME))
-            dvs_pbh.create_pbh_table(
+            self.dvs_pbh.create_pbh_table(
                 table_name=PBH_TABLE_NAME,
                 interface_list=PBH_TABLE_INTERFACE_LIST,
                 description=PBH_TABLE_DESCRIPTION
             )
-            dvs_acl.verify_acl_table_count(1)
+            self.dvs_acl.verify_acl_table_count(1)
 
             # PBH rule
-            attr_list = {
+            attr_dict = {
                 "gre_key": PBH_RULE_GRE_KEY,
                 "inner_ether_type": PBH_RULE_INNER_ETHER_TYPE
             }
 
             pbhlogger.info("Create PBH rule: {}".format(PBH_RULE_NAME))
-            dvs_pbh.create_pbh_rule(
+            self.dvs_pbh.create_pbh_rule(
                 table_name=PBH_TABLE_NAME,
                 rule_name=PBH_RULE_NAME,
                 priority=PBH_RULE_PRIORITY,
-                qualifiers=attr_list,
+                qualifiers=attr_dict,
                 hash_name=PBH_RULE_HASH
             )
-            dvs_acl.verify_acl_rule_count(1)
+            self.dvs_acl.verify_acl_rule_count(1)
         finally:
             # PBH rule
             pbhlogger.info("Remove PBH rule: {}".format(PBH_RULE_NAME))
-            dvs_pbh.remove_pbh_rule(PBH_TABLE_NAME, PBH_RULE_NAME)
-            dvs_acl.verify_acl_rule_count(0)
+            self.dvs_pbh.remove_pbh_rule(PBH_TABLE_NAME, PBH_RULE_NAME)
+            self.dvs_acl.verify_acl_rule_count(0)
 
             # PBH table
             pbhlogger.info("Remove PBH table: {}".format(PBH_TABLE_NAME))
-            dvs_pbh.remove_pbh_table(PBH_TABLE_NAME)
-            dvs_acl.verify_acl_table_count(0)
+            self.dvs_pbh.remove_pbh_table(PBH_TABLE_NAME)
+            self.dvs_acl.verify_acl_table_count(0)
 
             # PBH hash
             pbhlogger.info("Remove PBH hash: {}".format(PBH_HASH_NAME))
-            dvs_pbh.remove_pbh_hash(PBH_HASH_NAME)
-            dvs_pbh.verify_pbh_hash_count(0)
+            self.dvs_pbh.remove_pbh_hash(PBH_HASH_NAME)
+            self.dvs_pbh.verify_pbh_hash_count(0)
 
             # PBH hash field
             pbhlogger.info("Remove PBH hash field: {}".format(PBH_HASH_FIELD_NAME))
-            dvs_pbh.remove_pbh_hash_field(PBH_HASH_FIELD_NAME)
-            dvs_pbh.verify_pbh_hash_field_count(0)
+            self.dvs_pbh.remove_pbh_hash_field(PBH_HASH_FIELD_NAME)
+            self.dvs_pbh.verify_pbh_hash_field_count(0)
 
 
 @pytest.mark.usefixtures("dvs_lag_manager")
@@ -305,6 +320,100 @@ class TestPbhExtendedFlows:
     def strip_prefix(self, s, p):
         return s[len(p):] if s.startswith(p) else s
 
+    def create_basic_lag(self, meta_dict, lag_ref_count):
+        lag_id = self.strip_prefix(meta_dict["name"], "PortChannel")
+
+        pbhlogger.info("Create LAG: {}".format(meta_dict["name"]))
+        self.dvs_lag.create_port_channel(lag_id)
+        lag_ref_count.incLagCount()
+        self.dvs_lag.get_and_verify_port_channel(lag_ref_count.getLagCount())
+
+        pbhlogger.info("Create LAG member: {}".format(meta_dict["member"]))
+        self.dvs_lag.create_port_channel_member(lag_id, meta_dict["member"])
+        lag_ref_count.incLagMemberCount()
+        self.dvs_lag.get_and_verify_port_channel_members(lag_ref_count.getLagMemberCount())
+
+    def remove_basic_lag(self, meta_dict, lag_ref_count):
+        lag_id = self.strip_prefix(meta_dict["name"], "PortChannel")
+
+        pbhlogger.info("Remove LAG member: {}".format(meta_dict["member"]))
+        self.dvs_lag.remove_port_channel_member(lag_id, meta_dict["member"])
+        lag_ref_count.decLagMemberCount()
+        self.dvs_lag.get_and_verify_port_channel_members(lag_ref_count.getLagMemberCount())
+
+        pbhlogger.info("Remove LAG: {}".format(meta_dict["name"]))
+        self.dvs_lag.remove_port_channel(lag_id)
+        lag_ref_count.decLagCount()
+        self.dvs_lag.get_and_verify_port_channel(lag_ref_count.getLagCount())
+
+    def create_hash_field(self, meta_dict, pbh_ref_count):
+        pbhlogger.info("Create PBH hash field: {}".format(meta_dict["name"]))
+        self.dvs_pbh.create_pbh_hash_field(
+            hash_field_name=meta_dict["name"],
+            hash_field=meta_dict["hash_field"],
+            ip_mask=meta_dict["ip_mask"] if "ip_mask" in meta_dict else None,
+            sequence_id=meta_dict["sequence_id"]
+        )
+        pbh_ref_count.incPbhHashFieldCount()
+        self.dvs_pbh.verify_pbh_hash_field_count(pbh_ref_count.getPbhHashFieldCount())
+
+    def remove_hash_field(self, meta_dict, pbh_ref_count):
+        pbhlogger.info("Remove PBH hash field: {}".format(meta_dict["name"]))
+        self.dvs_pbh.remove_pbh_hash_field(meta_dict["name"])
+        pbh_ref_count.decPbhHashFieldCount()
+        self.dvs_pbh.verify_pbh_hash_field_count(pbh_ref_count.getPbhHashFieldCount())
+
+    def create_hash(self, meta_dict, pbh_ref_count):
+        pbhlogger.info("Create PBH hash: {}".format(meta_dict["name"]))
+        self.dvs_pbh.create_pbh_hash(
+            hash_name=meta_dict["name"],
+            hash_field_list=meta_dict["hash_field_list"]
+        )
+        pbh_ref_count.incPbhHashCount()
+        self.dvs_pbh.verify_pbh_hash_count(pbh_ref_count.getPbhHashCount())
+
+    def remove_hash(self, meta_dict, pbh_ref_count):
+        pbhlogger.info("Remove PBH hash: {}".format(meta_dict["name"]))
+        self.dvs_pbh.remove_pbh_hash(meta_dict["name"])
+        pbh_ref_count.decPbhHashCount()
+        self.dvs_pbh.verify_pbh_hash_count(pbh_ref_count.getPbhHashCount())
+
+    def create_table(self, meta_dict, pbh_ref_count):
+        pbhlogger.info("Create PBH table: {}".format(meta_dict["name"]))
+        self.dvs_pbh.create_pbh_table(
+            table_name=meta_dict["name"],
+            interface_list=meta_dict["interface_list"],
+            description=meta_dict["description"]
+        )
+        pbh_ref_count.incPbhTableCount()
+        self.dvs_acl.verify_acl_table_count(pbh_ref_count.getPbhTableCount())
+
+    def remove_table(self, meta_dict, pbh_ref_count):
+        pbhlogger.info("Remove PBH table: {}".format(meta_dict["name"]))
+        self.dvs_pbh.remove_pbh_table(meta_dict["name"])
+        pbh_ref_count.decPbhTableCount()
+        self.dvs_acl.verify_acl_table_count(pbh_ref_count.getPbhTableCount())
+
+    def create_rule(self, meta_dict, attr_dict, pbh_ref_count):
+        pbhlogger.info("Create PBH rule: {}".format(meta_dict["name"]))
+        self.dvs_pbh.create_pbh_rule(
+            table_name=meta_dict["table"],
+            rule_name=meta_dict["name"],
+            priority=meta_dict["priority"],
+            qualifiers=attr_dict,
+            hash_name=meta_dict["hash"],
+            packet_action=meta_dict["packet_action"] if "packet_action" in meta_dict else None,
+            flow_counter=meta_dict["flow_counter"] if "flow_counter" in meta_dict else None
+        )
+        pbh_ref_count.incPbhRuleCount()
+        self.dvs_acl.verify_acl_rule_count(pbh_ref_count.getPbhRuleCount())
+
+    def remove_rule(self, meta_dict, pbh_ref_count):
+        pbhlogger.info("Remove PBH rule: {}".format(meta_dict["name"]))
+        self.dvs_pbh.remove_pbh_rule(meta_dict["table"], meta_dict["name"])
+        pbh_ref_count.decPbhRuleCount()
+        self.dvs_acl.verify_acl_rule_count(pbh_ref_count.getPbhRuleCount())
+
     @pytest.fixture(autouse=True)
     def pbh_ref_count(self):
         pbhlogger.info("Create PBH reference count helper")
@@ -324,31 +433,10 @@ class TestPbhExtendedFlows:
                 "name": "PortChannel0001",
                 "member": "Ethernet120"
             }
-
-            lag_id = self.strip_prefix(meta_dict["name"], "PortChannel")
-
-            pbhlogger.info("Create LAG: {}".format(meta_dict["name"]))
-            self.dvs_lag.create_port_channel(lag_id)
-            lag_ref_count.incLagCount()
-            self.dvs_lag.get_and_verify_port_channel(lag_ref_count.getLagCount())
-
-            pbhlogger.info("Create LAG member: {}".format(meta_dict["member"]))
-            self.dvs_lag.create_port_channel_member(lag_id, meta_dict["member"])
-            lag_ref_count.incLagMemberCount()
-            self.dvs_lag.get_and_verify_port_channel_members(lag_ref_count.getLagMemberCount())
-
+            self.create_basic_lag(meta_dict, lag_ref_count)
             yield meta_dict
-
         finally:
-            pbhlogger.info("Remove LAG member: {}".format(meta_dict["member"]))
-            self.dvs_lag.remove_port_channel_member(lag_id, meta_dict["member"])
-            lag_ref_count.decLagMemberCount()
-            self.dvs_lag.get_and_verify_port_channel_members(lag_ref_count.getLagMemberCount())
-
-            pbhlogger.info("Remove LAG: {}".format(meta_dict["name"]))
-            self.dvs_lag.remove_port_channel(lag_id)
-            lag_ref_count.decLagCount()
-            self.dvs_lag.get_and_verify_port_channel(lag_ref_count.getLagCount())
+            self.remove_basic_lag(meta_dict, lag_ref_count)
 
     @pytest.fixture(autouse=True)
     def pbh_port_channel_0002(self, lag_ref_count):
@@ -357,112 +445,52 @@ class TestPbhExtendedFlows:
                 "name": "PortChannel0002",
                 "member": "Ethernet124"
             }
-
-            lag_id = self.strip_prefix(meta_dict["name"], "PortChannel")
-
-            pbhlogger.info("Create LAG: {}".format(meta_dict["name"]))
-            self.dvs_lag.create_port_channel(lag_id)
-            lag_ref_count.incLagCount()
-            self.dvs_lag.get_and_verify_port_channel(lag_ref_count.getLagCount())
-
-            pbhlogger.info("Create LAG member: {}".format(meta_dict["member"]))
-            self.dvs_lag.create_port_channel_member(lag_id, meta_dict["member"])
-            lag_ref_count.incLagMemberCount()
-            self.dvs_lag.get_and_verify_port_channel_members(lag_ref_count.getLagMemberCount())
-
+            self.create_basic_lag(meta_dict, lag_ref_count)
             yield meta_dict
-
         finally:
-            pbhlogger.info("Remove LAG member: {}".format(meta_dict["member"]))
-            self.dvs_lag.remove_port_channel_member(lag_id, meta_dict["member"])
-            lag_ref_count.decLagMemberCount()
-            self.dvs_lag.get_and_verify_port_channel_members(lag_ref_count.getLagMemberCount())
-
-            pbhlogger.info("Remove LAG: {}".format(meta_dict["name"]))
-            self.dvs_lag.remove_port_channel(lag_id)
-            lag_ref_count.decLagCount()
-            self.dvs_lag.get_and_verify_port_channel(lag_ref_count.getLagCount())
+            self.remove_basic_lag(meta_dict, lag_ref_count)
 
     @pytest.fixture
-    def pbh_inner_ip_proto(self, dvs_pbh, pbh_ref_count):
+    def pbh_inner_ip_proto(self, pbh_ref_count):
         try:
             meta_dict = {
                 "name": "inner_ip_proto",
                 "hash_field": "INNER_IP_PROTOCOL",
                 "sequence_id": "1"
             }
-
-            pbhlogger.info("Create PBH hash field: {}".format(meta_dict["name"]))
-            dvs_pbh.create_pbh_hash_field(
-                hash_field_name=meta_dict["name"],
-                hash_field=meta_dict["hash_field"],
-                sequence_id=meta_dict["sequence_id"]
-            )
-            pbh_ref_count.incPbhHashFieldCount()
-            dvs_pbh.verify_pbh_hash_field_count(pbh_ref_count.getPbhHashFieldCount())
-
+            self.create_hash_field(meta_dict, pbh_ref_count)
             yield meta_dict
-
         finally:
-            pbhlogger.info("Remove PBH hash field: {}".format(meta_dict["name"]))
-            dvs_pbh.remove_pbh_hash_field(meta_dict["name"])
-            pbh_ref_count.decPbhHashFieldCount()
-            dvs_pbh.verify_pbh_hash_field_count(pbh_ref_count.getPbhHashFieldCount())
+            self.remove_hash_field(meta_dict, pbh_ref_count)
 
     @pytest.fixture
-    def pbh_inner_l4_dst_port(self, dvs_pbh, pbh_ref_count):
+    def pbh_inner_l4_dst_port(self, pbh_ref_count):
         try:
             meta_dict = {
                 "name": "inner_l4_dst_port",
                 "hash_field": "INNER_L4_DST_PORT",
                 "sequence_id": "2"
             }
-
-            pbhlogger.info("Create PBH hash field: {}".format(meta_dict["name"]))
-            dvs_pbh.create_pbh_hash_field(
-                hash_field_name=meta_dict["name"],
-                hash_field=meta_dict["hash_field"],
-                sequence_id=meta_dict["sequence_id"]
-            )
-            pbh_ref_count.incPbhHashFieldCount()
-            dvs_pbh.verify_pbh_hash_field_count(pbh_ref_count.getPbhHashFieldCount())
-
+            self.create_hash_field(meta_dict, pbh_ref_count)
             yield meta_dict
-
         finally:
-            pbhlogger.info("Remove PBH hash field: {}".format(meta_dict["name"]))
-            dvs_pbh.remove_pbh_hash_field(meta_dict["name"])
-            pbh_ref_count.decPbhHashFieldCount()
-            dvs_pbh.verify_pbh_hash_field_count(pbh_ref_count.getPbhHashFieldCount())
+            self.remove_hash_field(meta_dict, pbh_ref_count)
 
     @pytest.fixture
-    def pbh_inner_l4_src_port(self, dvs_pbh, pbh_ref_count):
+    def pbh_inner_l4_src_port(self, pbh_ref_count):
         try:
             meta_dict = {
                 "name": "inner_l4_src_port",
                 "hash_field": "INNER_L4_SRC_PORT",
                 "sequence_id": "2"
             }
-
-            pbhlogger.info("Create PBH hash field: {}".format(meta_dict["name"]))
-            dvs_pbh.create_pbh_hash_field(
-                hash_field_name=meta_dict["name"],
-                hash_field=meta_dict["hash_field"],
-                sequence_id=meta_dict["sequence_id"]
-            )
-            pbh_ref_count.incPbhHashFieldCount()
-            dvs_pbh.verify_pbh_hash_field_count(pbh_ref_count.getPbhHashFieldCount())
-
+            self.create_hash_field(meta_dict, pbh_ref_count)
             yield meta_dict
-
         finally:
-            pbhlogger.info("Remove PBH hash field: {}".format(meta_dict["name"]))
-            dvs_pbh.remove_pbh_hash_field(meta_dict["name"])
-            pbh_ref_count.decPbhHashFieldCount()
-            dvs_pbh.verify_pbh_hash_field_count(pbh_ref_count.getPbhHashFieldCount())
+            self.remove_hash_field(meta_dict, pbh_ref_count)
 
     @pytest.fixture
-    def pbh_inner_dst_ipv4(self, dvs_pbh, pbh_ref_count):
+    def pbh_inner_dst_ipv4(self, pbh_ref_count):
         try:
             meta_dict = {
                 "name": "inner_dst_ipv4",
@@ -470,27 +498,13 @@ class TestPbhExtendedFlows:
                 "ip_mask": "255.0.0.0",
                 "sequence_id": "3"
             }
-
-            pbhlogger.info("Create PBH hash field: {}".format(meta_dict["name"]))
-            dvs_pbh.create_pbh_hash_field(
-                hash_field_name=meta_dict["name"],
-                hash_field=meta_dict["hash_field"],
-                ip_mask=meta_dict["ip_mask"],
-                sequence_id=meta_dict["sequence_id"]
-            )
-            pbh_ref_count.incPbhHashFieldCount()
-            dvs_pbh.verify_pbh_hash_field_count(pbh_ref_count.getPbhHashFieldCount())
-
+            self.create_hash_field(meta_dict, pbh_ref_count)
             yield meta_dict
-
         finally:
-            pbhlogger.info("Remove PBH hash field: {}".format(meta_dict["name"]))
-            dvs_pbh.remove_pbh_hash_field(meta_dict["name"])
-            pbh_ref_count.decPbhHashFieldCount()
-            dvs_pbh.verify_pbh_hash_field_count(pbh_ref_count.getPbhHashFieldCount())
+            self.remove_hash_field(meta_dict, pbh_ref_count)
 
     @pytest.fixture
-    def pbh_inner_src_ipv4(self, dvs_pbh, pbh_ref_count):
+    def pbh_inner_src_ipv4(self, pbh_ref_count):
         try:
             meta_dict = {
                 "name": "inner_src_ipv4",
@@ -498,27 +512,13 @@ class TestPbhExtendedFlows:
                 "ip_mask": "0.0.0.255",
                 "sequence_id": "3"
             }
-
-            pbhlogger.info("Create PBH hash field: {}".format(meta_dict["name"]))
-            dvs_pbh.create_pbh_hash_field(
-                hash_field_name=meta_dict["name"],
-                hash_field=meta_dict["hash_field"],
-                ip_mask=meta_dict["ip_mask"],
-                sequence_id=meta_dict["sequence_id"]
-            )
-            pbh_ref_count.incPbhHashFieldCount()
-            dvs_pbh.verify_pbh_hash_field_count(pbh_ref_count.getPbhHashFieldCount())
-
+            self.create_hash_field(meta_dict, pbh_ref_count)
             yield meta_dict
-
         finally:
-            pbhlogger.info("Remove PBH hash field: {}".format(meta_dict["name"]))
-            dvs_pbh.remove_pbh_hash_field(meta_dict["name"])
-            pbh_ref_count.decPbhHashFieldCount()
-            dvs_pbh.verify_pbh_hash_field_count(pbh_ref_count.getPbhHashFieldCount())
+            self.remove_hash_field(meta_dict, pbh_ref_count)
 
     @pytest.fixture
-    def pbh_inner_dst_ipv6(self, dvs_pbh, pbh_ref_count):
+    def pbh_inner_dst_ipv6(self, pbh_ref_count):
         try:
             meta_dict = {
                 "name": "inner_dst_ipv6",
@@ -526,27 +526,13 @@ class TestPbhExtendedFlows:
                 "ip_mask": "ffff::",
                 "sequence_id": "4"
             }
-
-            pbhlogger.info("Create PBH hash field: {}".format(meta_dict["name"]))
-            dvs_pbh.create_pbh_hash_field(
-                hash_field_name=meta_dict["name"],
-                hash_field=meta_dict["hash_field"],
-                ip_mask=meta_dict["ip_mask"],
-                sequence_id=meta_dict["sequence_id"]
-            )
-            pbh_ref_count.incPbhHashFieldCount()
-            dvs_pbh.verify_pbh_hash_field_count(pbh_ref_count.getPbhHashFieldCount())
-
+            self.create_hash_field(meta_dict, pbh_ref_count)
             yield meta_dict
-
         finally:
-            pbhlogger.info("Remove PBH hash field: {}".format(meta_dict["name"]))
-            dvs_pbh.remove_pbh_hash_field(meta_dict["name"])
-            pbh_ref_count.decPbhHashFieldCount()
-            dvs_pbh.verify_pbh_hash_field_count(pbh_ref_count.getPbhHashFieldCount())
+            self.remove_hash_field(meta_dict, pbh_ref_count)
 
     @pytest.fixture
-    def pbh_inner_src_ipv6(self, dvs_pbh, pbh_ref_count):
+    def pbh_inner_src_ipv6(self, pbh_ref_count):
         try:
             meta_dict = {
                 "name": "inner_src_ipv6",
@@ -554,29 +540,14 @@ class TestPbhExtendedFlows:
                 "ip_mask": "::ffff",
                 "sequence_id": "4"
             }
-
-            pbhlogger.info("Create PBH hash field: {}".format(meta_dict["name"]))
-            dvs_pbh.create_pbh_hash_field(
-                hash_field_name=meta_dict["name"],
-                hash_field=meta_dict["hash_field"],
-                ip_mask=meta_dict["ip_mask"],
-                sequence_id=meta_dict["sequence_id"]
-            )
-            pbh_ref_count.incPbhHashFieldCount()
-            dvs_pbh.verify_pbh_hash_field_count(pbh_ref_count.getPbhHashFieldCount())
-
+            self.create_hash_field(meta_dict, pbh_ref_count)
             yield meta_dict
-
         finally:
-            pbhlogger.info("Remove PBH hash field: {}".format(meta_dict["name"]))
-            dvs_pbh.remove_pbh_hash_field(meta_dict["name"])
-            pbh_ref_count.decPbhHashFieldCount()
-            dvs_pbh.verify_pbh_hash_field_count(pbh_ref_count.getPbhHashFieldCount())
+            self.remove_hash_field(meta_dict, pbh_ref_count)
 
     @pytest.fixture
     def pbh_inner_v4(
         self,
-        dvs_pbh,
         pbh_ref_count,
         pbh_inner_ip_proto,
         pbh_inner_l4_dst_port,
@@ -595,27 +566,14 @@ class TestPbhExtendedFlows:
                     pbh_inner_src_ipv4["name"]
                 ]
             }
-
-            pbhlogger.info("Create PBH hash: {}".format(meta_dict["name"]))
-            dvs_pbh.create_pbh_hash(
-                hash_name=meta_dict["name"],
-                hash_field_list=meta_dict["hash_field_list"]
-            )
-            pbh_ref_count.incPbhHashCount()
-            dvs_pbh.verify_pbh_hash_count(pbh_ref_count.getPbhHashCount())
-
+            self.create_hash(meta_dict, pbh_ref_count)
             yield meta_dict
-
         finally:
-            pbhlogger.info("Remove PBH hash: {}".format(meta_dict["name"]))
-            dvs_pbh.remove_pbh_hash(meta_dict["name"])
-            pbh_ref_count.decPbhHashCount()
-            dvs_pbh.verify_pbh_hash_count(pbh_ref_count.getPbhHashCount())
+            self.remove_hash(meta_dict, pbh_ref_count)
 
     @pytest.fixture
     def pbh_inner_v6(
         self,
-        dvs_pbh,
         pbh_ref_count,
         pbh_inner_ip_proto,
         pbh_inner_l4_dst_port,
@@ -634,28 +592,14 @@ class TestPbhExtendedFlows:
                     pbh_inner_src_ipv6["name"]
                 ]
             }
-
-            pbhlogger.info("Create PBH hash: {}".format(meta_dict["name"]))
-            dvs_pbh.create_pbh_hash(
-                hash_name=meta_dict["name"],
-                hash_field_list=meta_dict["hash_field_list"]
-            )
-            pbh_ref_count.incPbhHashCount()
-            dvs_pbh.verify_pbh_hash_count(pbh_ref_count.getPbhHashCount())
-
+            self.create_hash(meta_dict, pbh_ref_count)
             yield meta_dict
-
         finally:
-            pbhlogger.info("Remove PBH hash: {}".format(meta_dict["name"]))
-            dvs_pbh.remove_pbh_hash(meta_dict["name"])
-            pbh_ref_count.decPbhHashCount()
-            dvs_pbh.verify_pbh_hash_count(pbh_ref_count.getPbhHashCount())
+            self.remove_hash(meta_dict, pbh_ref_count)
 
     @pytest.fixture
     def pbh_table(
         self,
-        dvs_pbh,
-        dvs_acl,
         pbh_ref_count,
         pbh_port_channel_0001,
         pbh_port_channel_0002
@@ -671,29 +615,14 @@ class TestPbhExtendedFlows:
                 ],
                 "description": "NVGRE and VxLAN"
             }
-
-            pbhlogger.info("Create PBH table: {}".format(meta_dict["name"]))
-            dvs_pbh.create_pbh_table(
-                table_name=meta_dict["name"],
-                interface_list=meta_dict["interface_list"],
-                description=meta_dict["description"]
-            )
-            pbh_ref_count.incPbhTableCount()
-            dvs_acl.verify_acl_table_count(pbh_ref_count.getPbhTableCount())
-
+            self.create_table(meta_dict, pbh_ref_count)
             yield meta_dict
-
         finally:
-            pbhlogger.info("Remove PBH table: {}".format(meta_dict["name"]))
-            dvs_pbh.remove_pbh_table(meta_dict["name"])
-            pbh_ref_count.decPbhTableCount()
-            dvs_acl.verify_acl_table_count(pbh_ref_count.getPbhTableCount())
+            self.remove_table(meta_dict, pbh_ref_count)
 
     @pytest.fixture
     def pbh_nvgre(
         self,
-        dvs_pbh,
-        dvs_acl,
         pbh_ref_count,
         pbh_table,
         pbh_inner_v6
@@ -704,43 +633,23 @@ class TestPbhExtendedFlows:
                 "name": "nvgre",
                 "priority": "1",
                 "gre_key": "0x2500/0xffffff00",
-                "inner_ether_type": "0x86dd/0xffff",
+                "inner_ether_type": "0x86dd",
                 "hash": pbh_inner_v6["name"],
                 "packet_action": "SET_ECMP_HASH",
                 "flow_counter": "DISABLED"
             }
-
-            attr_list = {
+            attr_dict = {
                 "gre_key": meta_dict["gre_key"],
                 "inner_ether_type": meta_dict["inner_ether_type"]
             }
-
-            pbhlogger.info("Create PBH rule: {}".format(meta_dict["name"]))
-            dvs_pbh.create_pbh_rule(
-                table_name=meta_dict["table"],
-                rule_name=meta_dict["name"],
-                priority=meta_dict["priority"],
-                qualifiers=attr_list,
-                hash_name=meta_dict["hash"],
-                packet_action=meta_dict["packet_action"],
-                flow_counter=meta_dict["flow_counter"],
-            )
-            pbh_ref_count.incPbhRuleCount()
-            dvs_acl.verify_acl_rule_count(pbh_ref_count.getPbhRuleCount())
-
+            self.create_rule(meta_dict, attr_dict, pbh_ref_count)
             yield meta_dict
-
         finally:
-            pbhlogger.info("Remove PBH rule: {}".format(meta_dict["name"]))
-            dvs_pbh.remove_pbh_rule(meta_dict["table"], meta_dict["name"])
-            pbh_ref_count.decPbhRuleCount()
-            dvs_acl.verify_acl_rule_count(pbh_ref_count.getPbhRuleCount())
+            self.remove_rule(meta_dict, pbh_ref_count)
 
     @pytest.fixture
     def pbh_vxlan(
         self,
-        dvs_pbh,
-        dvs_acl,
         pbh_ref_count,
         pbh_table,
         pbh_inner_v4
@@ -750,40 +659,22 @@ class TestPbhExtendedFlows:
                 "table": pbh_table["name"],
                 "name": "vxlan",
                 "priority": "2",
-                "ip_protocol": "0x11/0xff",
-                "l4_dst_port": "0x12b5/0xffff",
-                "inner_ether_type": "0x0800/0xffff",
+                "ip_protocol": "0x11",
+                "l4_dst_port": "0x12b5",
+                "inner_ether_type": "0x0800",
                 "hash": pbh_inner_v4["name"],
                 "packet_action": "SET_LAG_HASH",
                 "flow_counter": "ENABLED"
             }
-
-            attr_list = {
+            attr_dict = {
                 "ip_protocol": meta_dict["ip_protocol"],
                 "l4_dst_port": meta_dict["l4_dst_port"],
                 "inner_ether_type": meta_dict["inner_ether_type"]
             }
-
-            pbhlogger.info("Create PBH rule: {}".format(meta_dict["name"]))
-            dvs_pbh.create_pbh_rule(
-                table_name=meta_dict["table"],
-                rule_name=meta_dict["name"],
-                priority=meta_dict["priority"],
-                qualifiers=attr_list,
-                hash_name=meta_dict["hash"],
-                packet_action=meta_dict["packet_action"],
-                flow_counter=meta_dict["flow_counter"],
-            )
-            pbh_ref_count.incPbhRuleCount()
-            dvs_acl.verify_acl_rule_count(pbh_ref_count.getPbhRuleCount())
-
+            self.create_rule(meta_dict, attr_dict, pbh_ref_count)
             yield meta_dict
-
         finally:
-            pbhlogger.info("Remove PBH rule: {}".format(meta_dict["name"]))
-            dvs_pbh.remove_pbh_rule(meta_dict["table"], meta_dict["name"])
-            pbh_ref_count.decPbhRuleCount()
-            dvs_acl.verify_acl_rule_count(pbh_ref_count.getPbhRuleCount())
+            self.remove_rule(meta_dict, pbh_ref_count)
 
     def test_PbhNvgreVxlanConfiguration(self, testlog, pbh_nvgre, pbh_vxlan):
         pass

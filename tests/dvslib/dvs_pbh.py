@@ -54,11 +54,9 @@ class DVSPbh:
             "priority": priority,
             "hash": hash_name,
             "packet_action": packet_action,
-            "flow_counter": flow_counter
+            "flow_counter": flow_counter,
+            **qualifiers
         }
-
-        for k, v in qualifiers.items():
-            attr_dict[k] = v
 
         self.config_db.create_entry(self.CDB_PBH_RULE, "{}|{}".format(table_name, rule_name), attr_dict)
 
