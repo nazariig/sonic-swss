@@ -1,5 +1,4 @@
-#ifndef SWSS_PBHORCH_H
-#define SWSS_PBHORCH_H
+#pragma once
 
 #include <vector>
 
@@ -9,7 +8,7 @@
 
 #include "pbh/pbhmgr.h"
 
-class PbhOrch : public Orch
+class PbhOrch final : public Orch
 {
 public:
     PbhOrch(
@@ -26,29 +25,31 @@ private:
     bool updatePbhTable(const PbhTable &table);
     bool removePbhTable(const PbhTable &table);
 
-    void deployPbhTableSetupTasks();
-    void deployPbhTableRemoveTasks();
-
     bool createPbhRule(const PbhRule &rule);
     bool updatePbhRule(const PbhRule &rule);
     bool removePbhRule(const PbhRule &rule);
-
-    void deployPbhRuleSetupTasks();
-    void deployPbhRuleRemoveTasks();
 
     bool createPbhHash(const PbhHash &hash);
     bool updatePbhHash(const PbhHash &hash);
     bool removePbhHash(const PbhHash &hash);
 
-    void deployPbhHashSetupTasks();
-    void deployPbhHashRemoveTasks();
-
     bool createPbhHashField(const PbhHashField &hashField);
     bool updatePbhHashField(const PbhHashField &hashField);
     bool removePbhHashField(const PbhHashField &hashField);
 
+    void deployPbhTableSetupTasks();
+    void deployPbhTableRemoveTasks();
+
+    void deployPbhRuleSetupTasks();
+    void deployPbhRuleRemoveTasks();
+
+    void deployPbhHashSetupTasks();
+    void deployPbhHashRemoveTasks();
+
     void deployPbhHashFieldSetupTasks();
     void deployPbhHashFieldRemoveTasks();
+
+    void deployPbhTasks();
 
     void doPbhTableTask(Consumer &consumer);
     void doPbhRuleTask(Consumer &consumer);
@@ -59,7 +60,5 @@ private:
     AclOrch *aclOrch;
     PortsOrch *portsOrch;
 
-    PbhManager pbhMgr;
+    PbhHelper pbhHlpr;
 };
-
-#endif /* SWSS_PBHORCH_H */

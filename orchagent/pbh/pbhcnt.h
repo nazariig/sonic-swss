@@ -1,5 +1,4 @@
-#ifndef SWSS_PBHCNT_H
-#define SWSS_PBHCNT_H
+#pragma once
 
 extern "C" {
 #include "saiacl.h"
@@ -22,10 +21,10 @@ public:
 
     PbhContainer(const std::string &key, const std::string &op) noexcept;
 
-    const std::uint64_t& getRefCount() const;
-    void incrementRefCount();
-    void decrementRefCount();
-    void clearRefCount();
+    std::uint64_t getRefCount() const noexcept;
+    void incrementRefCount() noexcept;
+    void decrementRefCount() noexcept;
+    void clearRefCount() noexcept;
 
     std::string key;
     std::string op;
@@ -35,7 +34,7 @@ protected:
     std::uint64_t refCount = 0;
 };
 
-class PbhTable : public PbhContainer
+class PbhTable final : public PbhContainer
 {
 public:
     PbhTable() = default;
@@ -56,7 +55,7 @@ public:
     std::string name;
 };
 
-class PbhRule : public PbhContainer
+class PbhRule final : public PbhContainer
 {
 public:
     PbhRule() = default;
@@ -110,7 +109,9 @@ public:
     } packet_action;
 
     struct {
-        std::string name;
+        struct {
+            std::string name;
+        } meta;
         bool value;
         bool is_set = false;
     } flow_counter;
@@ -119,7 +120,7 @@ public:
     std::string table;
 };
 
-class PbhHash : public PbhContainer
+class PbhHash final : public PbhContainer
 {
 public:
     PbhHash() = default;
@@ -127,8 +128,8 @@ public:
 
     PbhHash(const std::string &key, const std::string &op) noexcept;
 
-    const sai_object_id_t& getOid() const noexcept;
-    void setOid(const sai_object_id_t &oid) noexcept;
+    sai_object_id_t getOid() const noexcept;
+    void setOid(sai_object_id_t oid) noexcept;
 
     struct {
         std::unordered_set<std::string> value;
@@ -139,7 +140,7 @@ private:
     sai_object_id_t oid = SAI_NULL_OBJECT_ID;
 };
 
-class PbhHashField : public PbhContainer
+class PbhHashField final : public PbhContainer
 {
 public:
     PbhHashField() = default;
@@ -147,8 +148,8 @@ public:
 
     PbhHashField(const std::string &key, const std::string &op) noexcept;
 
-    const sai_object_id_t& getOid() const noexcept;
-    void setOid(const sai_object_id_t &oid) noexcept;
+    sai_object_id_t getOid() const noexcept;
+    void setOid(sai_object_id_t oid) noexcept;
 
     struct {
         sai_native_hash_field_t value;
@@ -168,5 +169,3 @@ public:
 private:
     sai_object_id_t oid = SAI_NULL_OBJECT_ID;
 };
-
-#endif /* SWSS_PBHCNT_H */

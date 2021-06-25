@@ -14,12 +14,12 @@ PbhContainer::PbhContainer(const std::string &key, const std::string &op) noexce
     this->op = op;
 }
 
-const std::uint64_t& PbhContainer::getRefCount() const
+std::uint64_t PbhContainer::getRefCount() const noexcept
 {
     return this->refCount;
 }
 
-void PbhContainer::incrementRefCount()
+void PbhContainer::incrementRefCount() noexcept
 {
     static const std::uint64_t max = std::numeric_limits<std::uint64_t>::max();
 
@@ -29,7 +29,7 @@ void PbhContainer::incrementRefCount()
     }
 }
 
-void PbhContainer::decrementRefCount()
+void PbhContainer::decrementRefCount() noexcept
 {
     static const std::uint64_t min = std::numeric_limits<std::uint64_t>::min();
 
@@ -39,7 +39,7 @@ void PbhContainer::decrementRefCount()
     }
 }
 
-void PbhContainer::clearRefCount()
+void PbhContainer::clearRefCount() noexcept
 {
     this->refCount = 0;
 }
@@ -68,12 +68,12 @@ PbhHash::PbhHash(const std::string &key, const std::string &op) noexcept :
 
 }
 
-const sai_object_id_t& PbhHash::getOid() const noexcept
+sai_object_id_t PbhHash::getOid() const noexcept
 {
     return this->oid;
 }
 
-void PbhHash::setOid(const sai_object_id_t &oid) noexcept
+void PbhHash::setOid(sai_object_id_t oid) noexcept
 {
     this->oid = oid;
 }
@@ -86,12 +86,12 @@ PbhHashField::PbhHashField(const std::string &key, const std::string &op) noexce
 
 }
 
-const sai_object_id_t& PbhHashField::getOid() const noexcept
+sai_object_id_t PbhHashField::getOid() const noexcept
 {
     return this->oid;
 }
 
-void PbhHashField::setOid(const sai_object_id_t &oid) noexcept
+void PbhHashField::setOid(sai_object_id_t oid) noexcept
 {
     this->oid = oid;
 }

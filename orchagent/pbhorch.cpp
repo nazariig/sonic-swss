@@ -9,6 +9,11 @@
 #include <string>
 #include <vector>
 #include <set>
+#include <mutex>
+
+#include "schema.h"
+#include "tokenize.h"
+#include "logger.h"
 
 #include "pbhorch.h"
 
@@ -22,7 +27,7 @@ using namespace swss;
 extern sai_hash_api_t *sai_hash_api;
 extern sai_object_id_t gSwitchId;
 
-// helpers ------------------------------------------------------------------------------------------------------------
+// functions ----------------------------------------------------------------------------------------------------------
 
 template<typename K, typename V>
 static inline std::set<K> uMapToKeySet(const umap_t<K, V> &uMap)
@@ -85,9 +90,9 @@ bool PbhOrch::createPbhTable(const PbhTable &table)
 
     PbhTable tObj;
 
-    if (this->pbhMgr.getPbhTable(tObj, table.key))
+    if (this->pbhHlpr.getPbhTable(tObj, table.key))
     {
-        SWSS_LOG_ERROR("Failed to create PBH table(%s) in HW: object already exists", table.key.c_str());
+        SWSS_LOG_ERROR("Failed to create PBH table(%s) in SAI: object already exists", table.key.c_str());
         return false;
     }
 
@@ -125,19 +130,23 @@ bool PbhOrch::createPbhTable(const PbhTable &table)
         return false;
     }
 
-    if (!this->aclOrch->addAclTable(pbhTable))
     {
-        SWSS_LOG_ERROR("Failed to create PBH table(%s) in HW", table.key.c_str());
-        return false;
+        std::lock_guard<std::mutex> lock(AclOrch::getCountersMutex());
+
+        if (!this->aclOrch->addAclTable(pbhTable))
+        {
+            SWSS_LOG_ERROR("Failed to create PBH table(%s) in SAI", table.key.c_str());
+            return false;
+        }
     }
 
-    if (!this->pbhMgr.addPbhTable(table))
+    if (!this->pbhHlpr.addPbhTable(table))
     {
         SWSS_LOG_ERROR("Failed to add PBH table(%s) to internal cache", table.key.c_str());
         return false;
     }
 
-    SWSS_LOG_NOTICE("Created PBH table(%s) in HW", table.key.c_str());
+    SWSS_LOG_NOTICE("Created PBH table(%s) in SAI", table.key.c_str());
 
     return true;
 }
@@ -148,9 +157,9 @@ bool PbhOrch::updatePbhTable(const PbhTable &table)
 
     PbhTable tObj;
 
-    if (!this->pbhMgr.getPbhTable(tObj, table.key))
+    if (!this->pbhHlpr.getPbhTable(tObj, table.key))
     {
-        SWSS_LOG_ERROR("Failed to update PBH table(%s) in HW: object doesn't exist", table.key.c_str());
+        SWSS_LOG_ERROR("Failed to update PBH table(%s) in SAI: object doesn't exist", table.key.c_str());
         return false;
     }
 
@@ -170,19 +179,23 @@ bool PbhOrch::updatePbhTable(const PbhTable &table)
         pbhTable.setDescription(table.description.value);
     }
 
-    if (!this->aclOrch->updateAclTable(table.name, pbhTable))
     {
-        SWSS_LOG_ERROR("Failed to update PBH table(%s) in HW", table.key.c_str());
-        return false;
+        std::lock_guard<std::mutex> lock(AclOrch::getCountersMutex());
+
+        if (!this->aclOrch->updateAclTable(table.name, pbhTable))
+        {
+            SWSS_LOG_ERROR("Failed to update PBH table(%s) in SAI", table.key.c_str());
+            return false;
+        }
     }
 
-    if (!this->pbhMgr.updatePbhTable(table))
+    if (!this->pbhHlpr.updatePbhTable(table))
     {
         SWSS_LOG_ERROR("Failed to update PBH table(%s) in internal cache", table.key.c_str());
         return false;
     }
 
-    SWSS_LOG_NOTICE("Updated PBH table(%s) in HW", table.key.c_str());
+    SWSS_LOG_NOTICE("Updated PBH table(%s) in SAI", table.key.c_str());
 
     return true;
 }
@@ -193,25 +206,29 @@ bool PbhOrch::removePbhTable(const PbhTable &table)
 
     PbhTable tObj;
 
-    if (!this->pbhMgr.getPbhTable(tObj, table.key))
+    if (!this->pbhHlpr.getPbhTable(tObj, table.key))
     {
-        SWSS_LOG_ERROR("Failed to remove PBH table(%s) from HW: object doesn't exist", table.key.c_str());
+        SWSS_LOG_ERROR("Failed to remove PBH table(%s) from SAI: object doesn't exist", table.key.c_str());
         return false;
     }
 
-    if (!this->aclOrch->removeAclTable(table.name))
     {
-        SWSS_LOG_ERROR("Failed to remove PBH table(%s) from HW", table.key.c_str());
-        return false;
+        std::lock_guard<std::mutex> lock(AclOrch::getCountersMutex());
+
+        if (!this->aclOrch->removeAclTable(table.name))
+        {
+            SWSS_LOG_ERROR("Failed to remove PBH table(%s) from SAI", table.key.c_str());
+            return false;
+        }
     }
 
-    if (!this->pbhMgr.removePbhTable(table.key))
+    if (!this->pbhHlpr.removePbhTable(table.key))
     {
         SWSS_LOG_ERROR("Failed to remove PBH table(%s) from internal cache", table.key.c_str());
         return false;
     }
 
-    SWSS_LOG_NOTICE("Removed PBH table(%s) from HW", table.key.c_str());
+    SWSS_LOG_NOTICE("Removed PBH table(%s) from SAI", table.key.c_str());
 
     return true;
 }
@@ -220,7 +237,7 @@ void PbhOrch::deployPbhTableSetupTasks()
 {
     SWSS_LOG_ENTER();
 
-    auto &map = this->pbhMgr.tableTask.pendingSetupMap;
+    auto &map = this->pbhHlpr.tableTask.pendingSetupMap;
     auto it = map.begin();
 
     while (it != map.end())
@@ -230,15 +247,11 @@ void PbhOrch::deployPbhTableSetupTasks()
 
         PbhTable tObj;
 
-        if (!this->pbhMgr.getPbhTable(tObj, key))
+        if (!this->pbhHlpr.getPbhTable(tObj, key))
         {
             if (!this->createPbhTable(table))
             {
                 SWSS_LOG_ERROR("Failed to create PBH table(%s): ASIC and CONFIG DB are diverged", key.c_str());
-            }
-            else
-            {
-                SWSS_LOG_NOTICE("Created PBH table(%s)", key.c_str());
             }
         }
         else
@@ -246,10 +259,6 @@ void PbhOrch::deployPbhTableSetupTasks()
             if (!this->updatePbhTable(table))
             {
                 SWSS_LOG_ERROR("Failed to update PBH table(%s): ASIC and CONFIG DB are diverged", key.c_str());
-            }
-            else
-            {
-                SWSS_LOG_NOTICE("Updated PBH table(%s)", key.c_str());
             }
         }
 
@@ -261,7 +270,7 @@ void PbhOrch::deployPbhTableRemoveTasks()
 {
     SWSS_LOG_ENTER();
 
-    auto &map = this->pbhMgr.tableTask.pendingRemoveMap;
+    auto &map = this->pbhHlpr.tableTask.pendingRemoveMap;
     auto it = map.begin();
 
     while (it != map.end())
@@ -271,16 +280,16 @@ void PbhOrch::deployPbhTableRemoveTasks()
 
         PbhTable tObj;
 
-        if (!this->pbhMgr.getPbhTable(tObj, key))
+        if (!this->pbhHlpr.getPbhTable(tObj, key))
         {
             SWSS_LOG_ERROR("Failed to remove PBH table(%s): object doesn't exist", key.c_str());
             it = map.erase(it);
             continue;
         }
 
-        if (this->pbhMgr.hasDependencies(tObj))
+        if (this->pbhHlpr.hasDependencies(tObj))
         {
-            SWSS_LOG_WARN("Unable to remove PBH table(%s): object has dependencies: adding retry", key.c_str());
+            SWSS_LOG_NOTICE("Unable to remove PBH table(%s): object has dependencies: adding a retry", key.c_str());
             it++;
             continue;
         }
@@ -291,8 +300,6 @@ void PbhOrch::deployPbhTableRemoveTasks()
             it = map.erase(it);
             continue;
         }
-
-        SWSS_LOG_NOTICE("Removed PBH table(%s)", key.c_str());
 
         it = map.erase(it);
     }
@@ -306,9 +313,9 @@ bool PbhOrch::createPbhRule(const PbhRule &rule)
 
     PbhRule rObj;
 
-    if (this->pbhMgr.getPbhRule(rObj, rule.key))
+    if (this->pbhHlpr.getPbhRule(rObj, rule.key))
     {
-        SWSS_LOG_ERROR("Failed to create PBH rule(%s) in HW: object already exists", rule.key.c_str());
+        SWSS_LOG_ERROR("Failed to create PBH rule(%s) in SAI: object already exists", rule.key.c_str());
         return false;
     }
 
@@ -416,7 +423,7 @@ bool PbhOrch::createPbhRule(const PbhRule &rule)
     {
         PbhHash hObj;
 
-        if (this->pbhMgr.getPbhHash(hObj, rule.hash.value))
+        if (this->pbhHlpr.getPbhHash(hObj, rule.hash.value))
         {
             sai_attribute_t attr;
 
@@ -438,25 +445,29 @@ bool PbhOrch::createPbhRule(const PbhRule &rule)
         return false;
     }
 
-    if (!this->aclOrch->addAclRule(pbhRule, rule.table))
     {
-        SWSS_LOG_ERROR("Failed to create PBH rule(%s) in HW", rule.key.c_str());
-        return false;
+        std::lock_guard<std::mutex> lock(AclOrch::getCountersMutex());
+
+        if (!this->aclOrch->addAclRule(pbhRule, rule.table))
+        {
+            SWSS_LOG_ERROR("Failed to create PBH rule(%s) in SAI", rule.key.c_str());
+            return false;
+        }
     }
 
-    if (!this->pbhMgr.addPbhRule(rule))
+    if (!this->pbhHlpr.addPbhRule(rule))
     {
         SWSS_LOG_ERROR("Failed to add PBH rule(%s) to internal cache", rule.key.c_str());
         return false;
     }
 
-    if (!this->pbhMgr.addDependencies(rule))
+    if (!this->pbhHlpr.addDependencies(rule))
     {
         SWSS_LOG_ERROR("Failed to add PBH rule(%s) dependencies", rule.key.c_str());
         return false;
     }
 
-    SWSS_LOG_NOTICE("Created PBH rule(%s) in HW", rule.key.c_str());
+    SWSS_LOG_NOTICE("Created PBH rule(%s) in SAI", rule.key.c_str());
 
     return true;
 }
@@ -467,15 +478,15 @@ bool PbhOrch::updatePbhRule(const PbhRule &rule)
 
     PbhRule rObj;
 
-    if (!this->pbhMgr.getPbhRule(rObj, rule.key))
+    if (!this->pbhHlpr.getPbhRule(rObj, rule.key))
     {
-        SWSS_LOG_ERROR("Failed to update PBH rule(%s) in HW: object doesn't exist", rule.key.c_str());
+        SWSS_LOG_ERROR("Failed to update PBH rule(%s) in SAI: object doesn't exist", rule.key.c_str());
         return false;
     }
 
     if (!uMapDiffByKey(rObj.fieldValueMap, rule.fieldValueMap).empty())
     {
-        SWSS_LOG_ERROR("Failed to update PBH rule(%s) in HW: fields add/remove is prohibited", rule.key.c_str());
+        SWSS_LOG_ERROR("Failed to update PBH rule(%s) in SAI: fields add/remove is prohibited", rule.key.c_str());
         return false;
     }
 
@@ -493,10 +504,10 @@ bool PbhOrch::updatePbhRule(const PbhRule &rule)
             continue;
         }
 
-        if (field != rule.flow_counter.name)
+        if (field != rule.flow_counter.meta.name)
         {
             SWSS_LOG_ERROR(
-                "Failed to update PBH rule(%s) in HW: field(%s) update is prohibited",
+                "Failed to update PBH rule(%s) in SAI: field(%s) update is prohibited",
                 rule.key.c_str(),
                 field.c_str()
             );
@@ -508,23 +519,27 @@ bool PbhOrch::updatePbhRule(const PbhRule &rule)
 
     if (!flowCounterUpdate)
     {
-        SWSS_LOG_NOTICE("PBH rule(%s) in HW is up-to-date", rule.key.c_str());
+        SWSS_LOG_NOTICE("PBH rule(%s) in SAI is up-to-date", rule.key.c_str());
         return true;
     }
 
-    if (!this->aclOrch->updateAclRule(rule.table, rule.name, rule.flow_counter.value))
     {
-        SWSS_LOG_ERROR("Failed to update PBH rule(%s) in HW", rule.key.c_str());
-        return false;
+        std::lock_guard<std::mutex> lock(AclOrch::getCountersMutex());
+
+        if (!this->aclOrch->updateAclRule(rule.table, rule.name, rule.flow_counter.value))
+        {
+            SWSS_LOG_ERROR("Failed to update PBH rule(%s) in SAI", rule.key.c_str());
+            return false;
+        }
     }
 
-    if (!this->pbhMgr.updatePbhRule(rule))
+    if (!this->pbhHlpr.updatePbhRule(rule))
     {
         SWSS_LOG_ERROR("Failed to update PBH rule(%s) in internal cache", rule.key.c_str());
         return false;
     }
 
-    SWSS_LOG_NOTICE("Updated PBH rule(%s) in HW", rule.key.c_str());
+    SWSS_LOG_NOTICE("Updated PBH rule(%s) in SAI", rule.key.c_str());
 
     return true;
 }
@@ -535,31 +550,35 @@ bool PbhOrch::removePbhRule(const PbhRule &rule)
 
     PbhRule rObj;
 
-    if (!this->pbhMgr.getPbhRule(rObj, rule.key))
+    if (!this->pbhHlpr.getPbhRule(rObj, rule.key))
     {
-        SWSS_LOG_ERROR("Failed to remove PBH rule(%s) from HW: object doesn't exist", rule.key.c_str());
+        SWSS_LOG_ERROR("Failed to remove PBH rule(%s) from SAI: object doesn't exist", rule.key.c_str());
         return false;
     }
 
-    if (!this->aclOrch->removeAclRule(rObj.table, rObj.name))
     {
-        SWSS_LOG_ERROR("Failed to remove PBH rule(%s) from HW", rObj.key.c_str());
-        return false;
+        std::lock_guard<std::mutex> lock(AclOrch::getCountersMutex());
+
+        if (!this->aclOrch->removeAclRule(rObj.table, rObj.name))
+        {
+            SWSS_LOG_ERROR("Failed to remove PBH rule(%s) from SAI", rObj.key.c_str());
+            return false;
+        }
     }
 
-    if (!this->pbhMgr.removePbhRule(rObj.key))
+    if (!this->pbhHlpr.removePbhRule(rObj.key))
     {
         SWSS_LOG_ERROR("Failed to remove PBH rule(%s) from internal cache", rObj.key.c_str());
         return false;
     }
 
-    if (!this->pbhMgr.removeDependencies(rObj))
+    if (!this->pbhHlpr.removeDependencies(rObj))
     {
         SWSS_LOG_ERROR("Failed to remove PBH rule(%s) dependencies", rObj.key.c_str());
         return false;
     }
 
-    SWSS_LOG_NOTICE("Removed PBH rule(%s) from HW", rObj.key.c_str());
+    SWSS_LOG_NOTICE("Removed PBH rule(%s) from SAI", rObj.key.c_str());
 
     return true;
 }
@@ -568,7 +587,7 @@ void PbhOrch::deployPbhRuleSetupTasks()
 {
     SWSS_LOG_ENTER();
 
-    auto &map = this->pbhMgr.ruleTask.pendingSetupMap;
+    auto &map = this->pbhHlpr.ruleTask.pendingSetupMap;
     auto it = map.begin();
 
     while (it != map.end())
@@ -576,24 +595,20 @@ void PbhOrch::deployPbhRuleSetupTasks()
         auto &key = it->first;
         auto &rule = it->second;
 
-        if (!this->pbhMgr.validateDependencies(rule))
+        if (!this->pbhHlpr.validateDependencies(rule))
         {
-            SWSS_LOG_WARN("Unable to setup PBH rule(%s): object has missing dependencies: adding retry", key.c_str());
+            SWSS_LOG_NOTICE("Unable to setup PBH rule(%s): object has missing dependencies: adding a retry", key.c_str());
             it++;
             continue;
         }
 
         PbhRule rObj;
 
-        if (!this->pbhMgr.getPbhRule(rObj, key))
+        if (!this->pbhHlpr.getPbhRule(rObj, key))
         {
             if (!this->createPbhRule(rule))
             {
                 SWSS_LOG_ERROR("Failed to create PBH rule(%s): ASIC and CONFIG DB are diverged", key.c_str());
-            }
-            else
-            {
-                SWSS_LOG_NOTICE("Created PBH rule(%s)", key.c_str());
             }
         }
         else
@@ -601,10 +616,6 @@ void PbhOrch::deployPbhRuleSetupTasks()
             if (!this->updatePbhRule(rule))
             {
                 SWSS_LOG_ERROR("Failed to update PBH rule(%s): ASIC and CONFIG DB are diverged", key.c_str());
-            }
-            else
-            {
-                SWSS_LOG_NOTICE("Updated PBH rule(%s)", key.c_str());
             }
         }
 
@@ -616,7 +627,7 @@ void PbhOrch::deployPbhRuleRemoveTasks()
 {
     SWSS_LOG_ENTER();
 
-    auto &map = this->pbhMgr.ruleTask.pendingRemoveMap;
+    auto &map = this->pbhHlpr.ruleTask.pendingRemoveMap;
     auto it = map.begin();
 
     while (it != map.end())
@@ -626,7 +637,7 @@ void PbhOrch::deployPbhRuleRemoveTasks()
 
         PbhRule rObj;
 
-        if (!this->pbhMgr.getPbhRule(rObj, key))
+        if (!this->pbhHlpr.getPbhRule(rObj, key))
         {
             SWSS_LOG_ERROR("Failed to remove PBH rule(%s): object doesn't exist", key.c_str());
             it = map.erase(it);
@@ -640,8 +651,6 @@ void PbhOrch::deployPbhRuleRemoveTasks()
             continue;
         }
 
-        SWSS_LOG_NOTICE("Removed PBH rule(%s)", key.c_str());
-
         it = map.erase(it);
     }
 }
@@ -654,9 +663,9 @@ bool PbhOrch::createPbhHash(const PbhHash &hash)
 
     PbhHash hObj;
 
-    if (this->pbhMgr.getPbhHash(hObj, hash.key))
+    if (this->pbhHlpr.getPbhHash(hObj, hash.key))
     {
-        SWSS_LOG_ERROR("Failed to create PBH hash(%s) in HW: object already exists", hash.key.c_str());
+        SWSS_LOG_ERROR("Failed to create PBH hash(%s) in SAI: object already exists", hash.key.c_str());
         return false;
     }
 
@@ -668,10 +677,10 @@ bool PbhOrch::createPbhHash(const PbhHash &hash)
         {
             PbhHashField hfObj;
 
-            if (!this->pbhMgr.getPbhHashField(hfObj, cit))
+            if (!this->pbhHlpr.getPbhHashField(hfObj, cit))
             {
                 SWSS_LOG_ERROR(
-                    "Failed to create PBH hash(%s) in HW: missing hash field(%s)",
+                    "Failed to create PBH hash(%s) in SAI: missing hash field(%s)",
                     hash.key.c_str(),
                     cit.c_str()
                 );
@@ -684,7 +693,7 @@ bool PbhOrch::createPbhHash(const PbhHash &hash)
 
     if (hashFieldOidList.empty())
     {
-        SWSS_LOG_ERROR("Failed to create PBH hash(%s) in HW: missing hash fields", hash.key.c_str());
+        SWSS_LOG_ERROR("Failed to create PBH hash(%s) in SAI: missing hash fields", hash.key.c_str());
         return false;
     }
 
@@ -702,26 +711,26 @@ bool PbhOrch::createPbhHash(const PbhHash &hash)
     status = sai_hash_api->create_hash(&hashOid, gSwitchId, static_cast<sai_uint32_t>(attrList.size()), attrList.data());
     if (status != SAI_STATUS_SUCCESS)
     {
-        SWSS_LOG_ERROR("Failed to create PBH hash(%s) in HW", hash.key.c_str());
+        SWSS_LOG_ERROR("Failed to create PBH hash(%s) in SAI", hash.key.c_str());
         return false;
     }
 
     hObj = hash;
     hObj.setOid(hashOid);
 
-    if (!this->pbhMgr.addPbhHash(hObj))
+    if (!this->pbhHlpr.addPbhHash(hObj))
     {
         SWSS_LOG_ERROR("Failed to add PBH hash(%s) to internal cache", hObj.key.c_str());
         return false;
     }
 
-    if (!this->pbhMgr.addDependencies(hObj))
+    if (!this->pbhHlpr.addDependencies(hObj))
     {
         SWSS_LOG_ERROR("Failed to add PBH hash(%s) dependencies", hObj.key.c_str());
         return false;
     }
 
-    SWSS_LOG_NOTICE("Created PBH hash(%s) in HW", hObj.key.c_str());
+    SWSS_LOG_NOTICE("Created PBH hash(%s) in SAI", hObj.key.c_str());
 
     return true;
 }
@@ -732,15 +741,39 @@ bool PbhOrch::updatePbhHash(const PbhHash &hash)
 
     PbhHash hObj;
 
-    if (!this->pbhMgr.getPbhHash(hObj, hash.key))
+    if (!this->pbhHlpr.getPbhHash(hObj, hash.key))
     {
-        SWSS_LOG_ERROR("Failed to update PBH hash(%s) in HW: object doesn't exist", hash.key.c_str());
+        SWSS_LOG_ERROR("Failed to update PBH hash(%s) in SAI: object doesn't exist", hash.key.c_str());
         return false;
     }
 
-    SWSS_LOG_ERROR("Failed to update PBH hash(%s) in HW: operation is prohibited", hash.key.c_str());
+    if (!uMapDiffByKey(hObj.fieldValueMap, hash.fieldValueMap).empty())
+    {
+        SWSS_LOG_ERROR("Failed to update PBH hash(%s) in SAI: fields add/remove is prohibited", hash.key.c_str());
+        return false;
+    }
 
-    return false;
+    for (const auto &oCit : hObj.fieldValueMap)
+    {
+        const auto &field = oCit.first;
+
+        const auto &oValue = oCit.second;
+        const auto &nValue = hash.fieldValueMap.at(field);
+
+        if (oValue != nValue)
+        {
+            SWSS_LOG_ERROR(
+                "Failed to update PBH hash(%s) in SAI: field(%s) update is prohibited",
+                hash.key.c_str(),
+                field.c_str()
+            );
+            return false;
+        }
+    }
+
+    SWSS_LOG_NOTICE("PBH hash(%s) in SAI is up-to-date", hash.key.c_str());
+
+    return true;
 }
 
 bool PbhOrch::removePbhHash(const PbhHash &hash)
@@ -749,9 +782,9 @@ bool PbhOrch::removePbhHash(const PbhHash &hash)
 
     PbhHash hObj;
 
-    if (!this->pbhMgr.getPbhHash(hObj, hash.key))
+    if (!this->pbhHlpr.getPbhHash(hObj, hash.key))
     {
-        SWSS_LOG_ERROR("Failed to remove PBH hash(%s) from HW: object doesn't exist", hash.key.c_str());
+        SWSS_LOG_ERROR("Failed to remove PBH hash(%s) from SAI: object doesn't exist", hash.key.c_str());
         return false;
     }
 
@@ -760,23 +793,23 @@ bool PbhOrch::removePbhHash(const PbhHash &hash)
     status = sai_hash_api->remove_hash(hObj.getOid());
     if (status != SAI_STATUS_SUCCESS)
     {
-        SWSS_LOG_ERROR("Failed to remove PBH hash(%s) from HW", hObj.key.c_str());
+        SWSS_LOG_ERROR("Failed to remove PBH hash(%s) from SAI", hObj.key.c_str());
         return false;
     }
 
-    if (!this->pbhMgr.removePbhHash(hObj.key))
+    if (!this->pbhHlpr.removePbhHash(hObj.key))
     {
         SWSS_LOG_ERROR("Failed to remove PBH hash(%s) from internal cache", hObj.key.c_str());
         return false;
     }
 
-    if (!this->pbhMgr.removeDependencies(hObj))
+    if (!this->pbhHlpr.removeDependencies(hObj))
     {
         SWSS_LOG_ERROR("Failed to remove PBH hash(%s) dependencies", hObj.key.c_str());
         return false;
     }
 
-    SWSS_LOG_NOTICE("Removed PBH hash(%s) from HW", hObj.key.c_str());
+    SWSS_LOG_NOTICE("Removed PBH hash(%s) from SAI", hObj.key.c_str());
 
     return true;
 }
@@ -785,7 +818,7 @@ void PbhOrch::deployPbhHashSetupTasks()
 {
     SWSS_LOG_ENTER();
 
-    auto &map = this->pbhMgr.hashTask.pendingSetupMap;
+    auto &map = this->pbhHlpr.hashTask.pendingSetupMap;
     auto it = map.begin();
 
     while (it != map.end())
@@ -793,24 +826,20 @@ void PbhOrch::deployPbhHashSetupTasks()
         auto &key = it->first;
         auto &hash = it->second;
 
-        if (!this->pbhMgr.validateDependencies(hash))
+        if (!this->pbhHlpr.validateDependencies(hash))
         {
-            SWSS_LOG_WARN("Unable to create PBH hash(%s): object has missing dependencies: adding retry", key.c_str());
+            SWSS_LOG_NOTICE("Unable to create PBH hash(%s): object has missing dependencies: adding a retry", key.c_str());
             it++;
             continue;
         }
 
         PbhHash hObj;
 
-        if (!this->pbhMgr.getPbhHash(hObj, key))
+        if (!this->pbhHlpr.getPbhHash(hObj, key))
         {
             if (!this->createPbhHash(hash))
             {
                 SWSS_LOG_ERROR("Failed to create PBH hash(%s): ASIC and CONFIG DB are diverged", key.c_str());
-            }
-            else
-            {
-                SWSS_LOG_NOTICE("Created PBH hash(%s)", key.c_str());
             }
         }
         else
@@ -818,10 +847,6 @@ void PbhOrch::deployPbhHashSetupTasks()
             if (!this->updatePbhHash(hash))
             {
                 SWSS_LOG_ERROR("Failed to update PBH hash(%s): ASIC and CONFIG DB are diverged", key.c_str());
-            }
-            else
-            {
-                SWSS_LOG_NOTICE("Updated PBH hash(%s)", key.c_str());
             }
         }
 
@@ -833,7 +858,7 @@ void PbhOrch::deployPbhHashRemoveTasks()
 {
     SWSS_LOG_ENTER();
 
-    auto &map = this->pbhMgr.hashTask.pendingRemoveMap;
+    auto &map = this->pbhHlpr.hashTask.pendingRemoveMap;
     auto it = map.begin();
 
     while (it != map.end())
@@ -843,16 +868,16 @@ void PbhOrch::deployPbhHashRemoveTasks()
 
         PbhHash hObj;
 
-        if (!this->pbhMgr.getPbhHash(hObj, key))
+        if (!this->pbhHlpr.getPbhHash(hObj, key))
         {
             SWSS_LOG_ERROR("Failed to remove PBH hash(%s): object doesn't exist", key.c_str());
             it = map.erase(it);
             continue;
         }
 
-        if (this->pbhMgr.hasDependencies(hObj))
+        if (this->pbhHlpr.hasDependencies(hObj))
         {
-            SWSS_LOG_WARN("Unable to remove PBH hash(%s): object has dependencies: adding retry", key.c_str());
+            SWSS_LOG_NOTICE("Unable to remove PBH hash(%s): object has dependencies: adding a retry", key.c_str());
             it++;
             continue;
         }
@@ -863,8 +888,6 @@ void PbhOrch::deployPbhHashRemoveTasks()
             it = map.erase(it);
             continue;
         }
-
-        SWSS_LOG_NOTICE("Removed PBH hash(%s)", key.c_str());
 
         it = map.erase(it);
     }
@@ -878,9 +901,9 @@ bool PbhOrch::createPbhHashField(const PbhHashField &hashField)
 
     PbhHashField hfObj;
 
-    if (this->pbhMgr.getPbhHashField(hfObj, hashField.key))
+    if (this->pbhHlpr.getPbhHashField(hfObj, hashField.key))
     {
-        SWSS_LOG_ERROR("Failed to create PBH hash field(%s) in HW: object already exists", hashField.key.c_str());
+        SWSS_LOG_ERROR("Failed to create PBH hash field(%s) in SAI: object already exists", hashField.key.c_str());
         return false;
     }
 
@@ -926,7 +949,7 @@ bool PbhOrch::createPbhHashField(const PbhHashField &hashField)
 
     if (attrList.empty())
     {
-        SWSS_LOG_ERROR("Failed to create PBH hash field(%s) in HW: missing SAI attributes", hashField.key.c_str());
+        SWSS_LOG_ERROR("Failed to create PBH hash field(%s) in SAI: missing attributes", hashField.key.c_str());
         return false;
     }
 
@@ -936,20 +959,20 @@ bool PbhOrch::createPbhHashField(const PbhHashField &hashField)
     status = sai_hash_api->create_fine_grained_hash_field(&hfOid, gSwitchId, static_cast<sai_uint32_t>(attrList.size()), attrList.data());
     if (status != SAI_STATUS_SUCCESS)
     {
-        SWSS_LOG_ERROR("Failed to create PBH hash field(%s) in HW", hashField.key.c_str());
+        SWSS_LOG_ERROR("Failed to create PBH hash field(%s) in SAI", hashField.key.c_str());
         return false;
     }
 
     hfObj = hashField;
     hfObj.setOid(hfOid);
 
-    if (!this->pbhMgr.addPbhHashField(hfObj))
+    if (!this->pbhHlpr.addPbhHashField(hfObj))
     {
         SWSS_LOG_ERROR("Failed to add PBH hash field(%s) to internal cache", hfObj.key.c_str());
         return false;
     }
 
-    SWSS_LOG_NOTICE("Created PBH hash field(%s) in HW", hfObj.key.c_str());
+    SWSS_LOG_NOTICE("Created PBH hash field(%s) in SAI", hfObj.key.c_str());
 
     return true;
 }
@@ -958,15 +981,39 @@ bool PbhOrch::updatePbhHashField(const PbhHashField &hashField)
 {
     PbhHashField hfObj;
 
-    if (!this->pbhMgr.getPbhHashField(hfObj, hashField.key))
+    if (!this->pbhHlpr.getPbhHashField(hfObj, hashField.key))
     {
-        SWSS_LOG_ERROR("Failed to update PBH hash field(%s) in HW: object doesn't exist", hashField.key.c_str());
+        SWSS_LOG_ERROR("Failed to update PBH hash field(%s) in SAI: object doesn't exist", hashField.key.c_str());
         return false;
     }
 
-    SWSS_LOG_ERROR("Failed to update PBH hash field(%s) in HW: operation is prohibited", hashField.key.c_str());
+    if (!uMapDiffByKey(hfObj.fieldValueMap, hashField.fieldValueMap).empty())
+    {
+        SWSS_LOG_ERROR("Failed to update PBH hash field(%s) in SAI: fields add/remove is prohibited", hashField.key.c_str());
+        return false;
+    }
 
-    return false;
+    for (const auto &oCit : hfObj.fieldValueMap)
+    {
+        const auto &field = oCit.first;
+
+        const auto &oValue = oCit.second;
+        const auto &nValue = hashField.fieldValueMap.at(field);
+
+        if (oValue != nValue)
+        {
+            SWSS_LOG_ERROR(
+                "Failed to update PBH hash field(%s) in SAI: field(%s) update is prohibited",
+                hashField.key.c_str(),
+                field.c_str()
+            );
+            return false;
+        }
+    }
+
+    SWSS_LOG_NOTICE("PBH hash field(%s) in SAI is up-to-date", hashField.key.c_str());
+
+    return true;
 }
 
 bool PbhOrch::removePbhHashField(const PbhHashField &hashField)
@@ -975,9 +1022,9 @@ bool PbhOrch::removePbhHashField(const PbhHashField &hashField)
 
     PbhHashField hfObj;
 
-    if (!this->pbhMgr.getPbhHashField(hfObj, hashField.key))
+    if (!this->pbhHlpr.getPbhHashField(hfObj, hashField.key))
     {
-        SWSS_LOG_ERROR("Failed to remove PBH hash field(%s) from HW: object doesn't exist", hashField.key.c_str());
+        SWSS_LOG_ERROR("Failed to remove PBH hash field(%s) from SAI: object doesn't exist", hashField.key.c_str());
         return false;
     }
 
@@ -986,17 +1033,17 @@ bool PbhOrch::removePbhHashField(const PbhHashField &hashField)
     status = sai_hash_api->remove_fine_grained_hash_field(hfObj.getOid());
     if (status != SAI_STATUS_SUCCESS)
     {
-        SWSS_LOG_ERROR("Failed to remove PBH hash field(%s) from HW", hfObj.key.c_str());
+        SWSS_LOG_ERROR("Failed to remove PBH hash field(%s) from SAI", hfObj.key.c_str());
         return false;
     }
 
-    if (!this->pbhMgr.removePbhHashField(hfObj.key))
+    if (!this->pbhHlpr.removePbhHashField(hfObj.key))
     {
         SWSS_LOG_ERROR("Failed to remove PBH hash field(%s) from internal cache", hfObj.key.c_str());
         return false;
     }
 
-    SWSS_LOG_NOTICE("Removed PBH hash field(%s) from HW", hfObj.key.c_str());
+    SWSS_LOG_NOTICE("Removed PBH hash field(%s) from SAI", hfObj.key.c_str());
 
     return true;
 }
@@ -1005,7 +1052,7 @@ void PbhOrch::deployPbhHashFieldSetupTasks()
 {
     SWSS_LOG_ENTER();
 
-    auto &map = this->pbhMgr.hashFieldTask.pendingSetupMap;
+    auto &map = this->pbhHlpr.hashFieldTask.pendingSetupMap;
     auto it = map.begin();
 
     while (it != map.end())
@@ -1015,15 +1062,11 @@ void PbhOrch::deployPbhHashFieldSetupTasks()
 
         PbhHashField hfObj;
 
-        if (!this->pbhMgr.getPbhHashField(hfObj, key))
+        if (!this->pbhHlpr.getPbhHashField(hfObj, key))
         {
             if (!this->createPbhHashField(hashField))
             {
                 SWSS_LOG_ERROR("Failed to create PBH hash field(%s): ASIC and CONFIG DB are diverged", key.c_str());
-            }
-            else
-            {
-                SWSS_LOG_NOTICE("Created PBH hash field(%s)", key.c_str());
             }
         }
         else
@@ -1031,10 +1074,6 @@ void PbhOrch::deployPbhHashFieldSetupTasks()
             if (!this->updatePbhHashField(hashField))
             {
                 SWSS_LOG_ERROR("Failed to update PBH hash field(%s): ASIC and CONFIG DB are diverged", key.c_str());
-            }
-            else
-            {
-                SWSS_LOG_NOTICE("Updated PBH hash field(%s)", key.c_str());
             }
         }
 
@@ -1046,7 +1085,7 @@ void PbhOrch::deployPbhHashFieldRemoveTasks()
 {
     SWSS_LOG_ENTER();
 
-    auto &map = this->pbhMgr.hashFieldTask.pendingRemoveMap;
+    auto &map = this->pbhHlpr.hashFieldTask.pendingRemoveMap;
     auto it = map.begin();
 
     while (it != map.end())
@@ -1056,16 +1095,16 @@ void PbhOrch::deployPbhHashFieldRemoveTasks()
 
         PbhHashField hfObj;
 
-        if (!this->pbhMgr.getPbhHashField(hfObj, key))
+        if (!this->pbhHlpr.getPbhHashField(hfObj, key))
         {
             SWSS_LOG_ERROR("Failed to remove PBH hash field(%s): object doesn't exist", key.c_str());
             it = map.erase(it);
             continue;
         }
 
-        if (this->pbhMgr.hasDependencies(hfObj))
+        if (this->pbhHlpr.hasDependencies(hfObj))
         {
-            SWSS_LOG_WARN("Unable to remove PBH hash field(%s): object has dependencies: adding retry", key.c_str());
+            SWSS_LOG_NOTICE("Unable to remove PBH hash field(%s): object has dependencies: adding a retry", key.c_str());
             it++;
             continue;
         }
@@ -1077,13 +1116,24 @@ void PbhOrch::deployPbhHashFieldRemoveTasks()
             continue;
         }
 
-        SWSS_LOG_NOTICE("Removed PBH hash field(%s)", key.c_str());
-
         it = map.erase(it);
     }
 }
 
 // PBH task -----------------------------------------------------------------------------------------------------------
+
+void PbhOrch::deployPbhTasks()
+{
+    this->deployPbhHashFieldSetupTasks();
+    this->deployPbhHashSetupTasks();
+    this->deployPbhTableSetupTasks();
+    this->deployPbhRuleSetupTasks();
+
+    this->deployPbhRuleRemoveTasks();
+    this->deployPbhTableRemoveTasks();
+    this->deployPbhHashRemoveTasks();
+    this->deployPbhHashFieldRemoveTasks();
+}
 
 void PbhOrch::doPbhTableTask(Consumer &consumer)
 {
@@ -1098,7 +1148,7 @@ void PbhOrch::doPbhTableTask(Consumer &consumer)
         auto key = kfvKey(keyOpFieldsValues);
         auto op = kfvOp(keyOpFieldsValues);
 
-        SWSS_LOG_NOTICE("KEY: %s, OP: %s", key.c_str(), op.c_str());
+        SWSS_LOG_INFO("KEY: %s, OP: %s", key.c_str(), op.c_str());
 
         if (key.empty())
         {
@@ -1117,19 +1167,19 @@ void PbhOrch::doPbhTableTask(Consumer &consumer)
                 auto fieldName = fvField(cit);
                 auto fieldValue = fvValue(cit);
 
-                SWSS_LOG_NOTICE("FIELD: %s, VALUE: %s", fieldName.c_str(), fieldValue.c_str());
+                SWSS_LOG_INFO("FIELD: %s, VALUE: %s", fieldName.c_str(), fieldValue.c_str());
 
                 table.fieldValueMap[fieldName] = fieldValue;
             }
 
-            if (this->pbhMgr.parsePbhTable(table))
+            if (this->pbhHlpr.parsePbhTable(table))
             {
-                this->pbhMgr.tableTask.pendingSetupMap[table.key] = table;
+                this->pbhHlpr.tableTask.pendingSetupMap[table.key] = table;
             }
         }
         else if (op == DEL_COMMAND)
         {
-            this->pbhMgr.tableTask.pendingRemoveMap[table.key] = table;
+            this->pbhHlpr.tableTask.pendingRemoveMap[table.key] = table;
         }
         else
         {
@@ -1153,7 +1203,7 @@ void PbhOrch::doPbhRuleTask(Consumer &consumer)
         auto key = kfvKey(keyOpFieldsValues);
         auto op = kfvOp(keyOpFieldsValues);
 
-        SWSS_LOG_NOTICE("KEY: %s, OP: %s", key.c_str(), op.c_str());
+        SWSS_LOG_INFO("KEY: %s, OP: %s", key.c_str(), op.c_str());
 
         auto keyTokens = tokenize(key, consumer.getConsumerTable()->getTableNameSeparator()[0]);
 
@@ -1178,19 +1228,19 @@ void PbhOrch::doPbhRuleTask(Consumer &consumer)
                 auto fieldName = fvField(cit);
                 auto fieldValue = fvValue(cit);
 
-                SWSS_LOG_NOTICE("FIELD: %s, VALUE: %s", fieldName.c_str(), fieldValue.c_str());
+                SWSS_LOG_INFO("FIELD: %s, VALUE: %s", fieldName.c_str(), fieldValue.c_str());
 
                 rule.fieldValueMap[fieldName] = fieldValue;
             }
 
-            if (this->pbhMgr.parsePbhRule(rule))
+            if (this->pbhHlpr.parsePbhRule(rule))
             {
-                this->pbhMgr.ruleTask.pendingSetupMap[rule.key] = rule;
+                this->pbhHlpr.ruleTask.pendingSetupMap[rule.key] = rule;
             }
         }
         else if (op == DEL_COMMAND)
         {
-            this->pbhMgr.ruleTask.pendingRemoveMap[rule.key] = rule;
+            this->pbhHlpr.ruleTask.pendingRemoveMap[rule.key] = rule;
         }
         else
         {
@@ -1214,7 +1264,7 @@ void PbhOrch::doPbhHashTask(Consumer &consumer)
         auto key = kfvKey(keyOpFieldsValues);
         auto op = kfvOp(keyOpFieldsValues);
 
-        SWSS_LOG_NOTICE("KEY: %s, OP: %s", key.c_str(), op.c_str());
+        SWSS_LOG_INFO("KEY: %s, OP: %s", key.c_str(), op.c_str());
 
         if (key.empty())
         {
@@ -1232,19 +1282,19 @@ void PbhOrch::doPbhHashTask(Consumer &consumer)
                 auto fieldName = fvField(cit);
                 auto fieldValue = fvValue(cit);
 
-                SWSS_LOG_NOTICE("FIELD: %s, VALUE: %s", fieldName.c_str(), fieldValue.c_str());
+                SWSS_LOG_INFO("FIELD: %s, VALUE: %s", fieldName.c_str(), fieldValue.c_str());
 
                 hash.fieldValueMap[fieldName] = fieldValue;
             }
 
-            if (this->pbhMgr.parsePbhHash(hash))
+            if (this->pbhHlpr.parsePbhHash(hash))
             {
-                this->pbhMgr.hashTask.pendingSetupMap[hash.key] = hash;
+                this->pbhHlpr.hashTask.pendingSetupMap[hash.key] = hash;
             }
         }
         else if (op == DEL_COMMAND)
         {
-            this->pbhMgr.hashTask.pendingRemoveMap[hash.key] = hash;
+            this->pbhHlpr.hashTask.pendingRemoveMap[hash.key] = hash;
         }
         else
         {
@@ -1268,7 +1318,7 @@ void PbhOrch::doPbhHashFieldTask(Consumer &consumer)
         auto key = kfvKey(keyOpFieldsValues);
         auto op = kfvOp(keyOpFieldsValues);
 
-        SWSS_LOG_NOTICE("KEY: %s, OP: %s", key.c_str(), op.c_str());
+        SWSS_LOG_INFO("KEY: %s, OP: %s", key.c_str(), op.c_str());
 
         if (key.empty())
         {
@@ -1286,19 +1336,19 @@ void PbhOrch::doPbhHashFieldTask(Consumer &consumer)
                 auto fieldName = fvField(cit);
                 auto fieldValue = fvValue(cit);
 
-                SWSS_LOG_NOTICE("FIELD: %s, VALUE: %s", fieldName.c_str(), fieldValue.c_str());
+                SWSS_LOG_INFO("FIELD: %s, VALUE: %s", fieldName.c_str(), fieldValue.c_str());
 
                 hashField.fieldValueMap[fieldName] = fieldValue;
             }
 
-            if (this->pbhMgr.parsePbhHashField(hashField))
+            if (this->pbhHlpr.parsePbhHashField(hashField))
             {
-                this->pbhMgr.hashFieldTask.pendingSetupMap[hashField.key] = hashField;
+                this->pbhHlpr.hashFieldTask.pendingSetupMap[hashField.key] = hashField;
             }
         }
         else if (op == DEL_COMMAND)
         {
-            this->pbhMgr.hashFieldTask.pendingRemoveMap[hashField.key] = hashField;
+            this->pbhHlpr.hashFieldTask.pendingRemoveMap[hashField.key] = hashField;
         }
         else
         {
@@ -1341,13 +1391,5 @@ void PbhOrch::doTask(Consumer &consumer)
         SWSS_LOG_ERROR("Unknown table(%s)", tableName.c_str());
     }
 
-    this->deployPbhHashFieldSetupTasks();
-    this->deployPbhHashSetupTasks();
-    this->deployPbhTableSetupTasks();
-    this->deployPbhRuleSetupTasks();
-
-    this->deployPbhRuleRemoveTasks();
-    this->deployPbhTableRemoveTasks();
-    this->deployPbhHashRemoveTasks();
-    this->deployPbhHashFieldRemoveTasks();
+    this->deployPbhTasks();
 }

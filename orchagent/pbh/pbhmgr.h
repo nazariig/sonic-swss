@@ -1,20 +1,14 @@
-#ifndef SWSS_PBHMGR_H
-#define SWSS_PBHMGR_H
+#pragma once
 
 #include "pbhcnt.h"
 
-class PbhManager
+class PbhHelper final
 {
 public:
-    PbhManager() = default;
-    ~PbhManager() = default;
+    PbhHelper() = default;
+    ~PbhHelper() = default;
 
-    static std::uint8_t toUInt8(const std::string &hexStr);
-    static std::uint16_t toUInt16(const std::string &hexStr);
-    static std::uint32_t toUInt32(const std::string &hexStr);
-
-    template<typename T>
-    bool hasDependencies(const T &obj) const;
+    bool hasDependencies(const PbhContainer &obj) const;
     template<typename T>
     bool validateDependencies(const T &obj) const;
     template<typename T>
@@ -49,6 +43,21 @@ public:
     bool parsePbhHashField(PbhHashField &hashField) const;
 
 private:
+    template<typename T>
+    auto getPbhObjMap() const -> const std::unordered_map<std::string, T>&;
+    template<typename T>
+    auto getPbhObjMap() -> std::unordered_map<std::string, T>&;
+
+    template<typename T>
+    bool getPbhObj(T &obj, const std::string &key) const;
+
+    template<typename T>
+    bool addPbhObj(const T &obj);
+    template<typename T>
+    bool updatePbhObj(const T &obj);
+    template<typename T>
+    bool removePbhObj(const std::string &key);
+
     bool parsePbhTableInterfaceList(PbhTable &table, const std::string &field, const std::string &value) const;
     bool parsePbhTableDescription(PbhTable &table, const std::string &field, const std::string &value) const;
 
@@ -103,5 +112,3 @@ private:
     std::unordered_map<std::string, PbhHash> hashMap;
     std::unordered_map<std::string, PbhHashField> hashFieldMap;
 };
-
-#endif /* SWSS_PBHMGR_H */

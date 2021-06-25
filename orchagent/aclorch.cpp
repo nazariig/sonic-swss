@@ -1530,9 +1530,7 @@ bool AclTable::validateAddType(const acl_table_type_t &value)
 
     if (value == ACL_TABLE_MIRROR || value == ACL_TABLE_MIRRORV6)
     {
-        auto it = m_pAclOrch->m_mirrorTableCapabilities.find(value);
-
-        if (it == m_pAclOrch->m_mirrorTableCapabilities.end() || !m_pAclOrch->m_mirrorTableCapabilities[value])
+        if (!m_pAclOrch->isAclMirrorTableSupported(value))
         {
             SWSS_LOG_ERROR("Failed to validate type: mirror table is not supported");
             return false;
@@ -3421,6 +3419,17 @@ bool AclOrch::updateAclRule(string table_id, string rule_id, bool enableCounter)
 bool AclOrch::isCombinedMirrorV6Table()
 {
     return m_isCombinedMirrorV6Table;
+}
+
+bool AclOrch::isAclMirrorTableSupported(acl_table_type_t type) const
+{
+    const auto &it = m_mirrorTableCapabilities.find(type);
+    if (it == m_mirrorTableCapabilities.cend())
+    {
+        return false;
+    }
+
+    return it->second;
 }
 
 bool AclOrch::isAclActionSupported(acl_stage_type_t stage, sai_acl_action_type_t action) const

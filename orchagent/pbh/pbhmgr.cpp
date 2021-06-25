@@ -76,56 +76,43 @@ static const std::unordered_map<std::string, sai_native_hash_field_t> pbhHashFie
     { PBH_HASH_FIELD_HASH_FIELD_INNER_SRC_IPV6,    SAI_NATIVE_HASH_FIELD_INNER_SRC_IPV6    }
 };
 
-// PBH manager  -------------------------------------------------------------------------------------------------------
+// functions ----------------------------------------------------------------------------------------------------------
 
-std::uint8_t PbhManager::toUInt8(const std::string &hexStr)
+template<typename T>
+static inline T toUInt(const std::string &hexStr)
 {
     if (hexStr.substr(0, 2) != "0x")
     {
         throw std::invalid_argument("Invalid argument: '" + hexStr + "'");
     }
 
-    return to_uint<std::uint8_t>(hexStr);
+    return to_uint<T>(hexStr);
 }
 
-std::uint16_t PbhManager::toUInt16(const std::string &hexStr)
+static inline std::uint8_t toUInt8(const std::string &hexStr)
 {
-    if (hexStr.substr(0, 2) != "0x")
-    {
-        throw std::invalid_argument("Invalid argument: '" + hexStr + "'");
-    }
-
-    return to_uint<std::uint16_t>(hexStr);
+    return toUInt<std::uint8_t>(hexStr);
 }
 
-std::uint32_t PbhManager::toUInt32(const std::string &hexStr)
+static inline std::uint16_t toUInt16(const std::string &hexStr)
 {
-    if (hexStr.substr(0, 2) != "0x")
-    {
-        throw std::invalid_argument("Invalid argument: '" + hexStr + "'");
-    }
-
-    return to_uint<std::uint32_t>(hexStr);
+    return toUInt<std::uint16_t>(hexStr);
 }
 
-template <typename T>
-bool PbhManager::hasDependencies(const T &obj) const
+static inline std::uint32_t toUInt32(const std::string &hexStr)
 {
-    if (obj.getRefCount() > 0)
-    {
-        return true;
-    }
-
-    return false;
+    return toUInt<std::uint32_t>(hexStr);
 }
 
-template bool PbhManager::hasDependencies(const PbhTable &obj) const;
-template bool PbhManager::hasDependencies(const PbhRule &obj) const;
-template bool PbhManager::hasDependencies(const PbhHash &obj) const;
-template bool PbhManager::hasDependencies(const PbhHashField &obj) const;
+// PBH helper ---------------------------------------------------------------------------------------------------------
+
+bool PbhHelper::hasDependencies(const PbhContainer &obj) const
+{
+    return obj.getRefCount() > 0;
+}
 
 template<>
-bool PbhManager::validateDependencies(const PbhRule &obj) const
+bool PbhHelper::validateDependencies(const PbhRule &obj) const
 {
     const auto &tCit = this->tableMap.find(obj.table);
     if (tCit == this->tableMap.cend())
@@ -143,7 +130,7 @@ bool PbhManager::validateDependencies(const PbhRule &obj) const
 }
 
 template<>
-bool PbhManager::validateDependencies(const PbhHash &obj) const
+bool PbhHelper::validateDependencies(const PbhHash &obj) const
 {
     for (const auto &cit : obj.hash_field_list.value)
     {
@@ -158,7 +145,7 @@ bool PbhManager::validateDependencies(const PbhHash &obj) const
 }
 
 template<>
-bool PbhManager::addDependencies(const PbhRule &obj)
+bool PbhHelper::addDependencies(const PbhRule &obj)
 {
     const auto &tCit = this->tableMap.find(obj.table);
     if (tCit == this->tableMap.cend())
@@ -182,7 +169,7 @@ bool PbhManager::addDependencies(const PbhRule &obj)
 }
 
 template<>
-bool PbhManager::addDependencies(const PbhHash &obj)
+bool PbhHelper::addDependencies(const PbhHash &obj)
 {
     std::vector<std::unordered_map<std::string, PbhHashField>::iterator> itList;
 
@@ -207,7 +194,7 @@ bool PbhManager::addDependencies(const PbhHash &obj)
 }
 
 template<>
-bool PbhManager::removeDependencies(const PbhRule &obj)
+bool PbhHelper::removeDependencies(const PbhRule &obj)
 {
     const auto &tCit = this->tableMap.find(obj.table);
     if (tCit == this->tableMap.cend())
@@ -231,7 +218,7 @@ bool PbhManager::removeDependencies(const PbhRule &obj)
 }
 
 template<>
-bool PbhManager::removeDependencies(const PbhHash &obj)
+bool PbhHelper::removeDependencies(const PbhHash &obj)
 {
     std::vector<std::unordered_map<std::string, PbhHashField>::iterator> itList;
 
@@ -255,227 +242,219 @@ bool PbhManager::removeDependencies(const PbhHash &obj)
     return true;
 }
 
-bool PbhManager::getPbhTable(PbhTable &table, const std::string &key) const
+template<>
+auto PbhHelper::getPbhObjMap() const -> const std::unordered_map<std::string, PbhTable>&
 {
-    const auto &cit = this->tableMap.find(key);
-    if (cit == this->tableMap.cend())
+    return this->tableMap;
+}
+
+template<>
+auto PbhHelper::getPbhObjMap() const -> const std::unordered_map<std::string, PbhRule>&
+{
+    return this->ruleMap;
+}
+
+template<>
+auto PbhHelper::getPbhObjMap() const -> const std::unordered_map<std::string, PbhHash>&
+{
+    return this->hashMap;
+}
+
+template<>
+auto PbhHelper::getPbhObjMap() const -> const std::unordered_map<std::string, PbhHashField>&
+{
+    return this->hashFieldMap;
+}
+
+template<typename T>
+bool PbhHelper::getPbhObj(T &obj, const std::string &key) const
+{
+    const auto &objMap = this->getPbhObjMap<T>();
+
+    const auto &cit = objMap.find(key);
+    if (cit == objMap.cend())
     {
         return false;
     }
 
-    table = cit->second;
+    obj = cit->second;
 
     return true;
 }
 
-bool PbhManager::getPbhRule(PbhRule &rule, const std::string &key) const
+template bool PbhHelper::getPbhObj(PbhTable &obj, const std::string &key) const;
+template bool PbhHelper::getPbhObj(PbhRule &obj, const std::string &key) const;
+template bool PbhHelper::getPbhObj(PbhHash &obj, const std::string &key) const;
+template bool PbhHelper::getPbhObj(PbhHashField &obj, const std::string &key) const;
+
+bool PbhHelper::getPbhTable(PbhTable &table, const std::string &key) const
 {
-    const auto &cit = this->ruleMap.find(key);
-    if (cit == this->ruleMap.cend())
+    return this->getPbhObj(table, key);
+}
+
+bool PbhHelper::getPbhRule(PbhRule &rule, const std::string &key) const
+{
+    return this->getPbhObj(rule, key);
+}
+
+bool PbhHelper::getPbhHash(PbhHash &hash, const std::string &key) const
+{
+    return this->getPbhObj(hash, key);
+}
+
+bool PbhHelper::getPbhHashField(PbhHashField &hashField, const std::string &key) const
+{
+    return this->getPbhObj(hashField, key);
+}
+
+template<>
+auto PbhHelper::getPbhObjMap() -> std::unordered_map<std::string, PbhTable>&
+{
+    return this->tableMap;
+}
+
+template<>
+auto PbhHelper::getPbhObjMap() -> std::unordered_map<std::string, PbhRule>&
+{
+    return this->ruleMap;
+}
+
+template<>
+auto PbhHelper::getPbhObjMap() -> std::unordered_map<std::string, PbhHash>&
+{
+    return this->hashMap;
+}
+
+template<>
+auto PbhHelper::getPbhObjMap() -> std::unordered_map<std::string, PbhHashField>&
+{
+    return this->hashFieldMap;
+}
+
+template <typename T>
+bool PbhHelper::addPbhObj(const T &obj)
+{
+    auto &objMap = this->getPbhObjMap<T>();
+
+    const auto &cit = objMap.find(obj.key);
+    if (cit != objMap.cend())
     {
         return false;
     }
 
-    rule = cit->second;
+    objMap[obj.key] = obj;
 
     return true;
 }
 
-bool PbhManager::getPbhHash(PbhHash &hash, const std::string &key) const
+template bool PbhHelper::addPbhObj(const PbhTable &obj);
+template bool PbhHelper::addPbhObj(const PbhRule &obj);
+template bool PbhHelper::addPbhObj(const PbhHash &obj);
+template bool PbhHelper::addPbhObj(const PbhHashField &obj);
+
+bool PbhHelper::addPbhTable(const PbhTable &table)
 {
-    const auto &cit = this->hashMap.find(key);
-    if (cit == this->hashMap.cend())
+    return this->addPbhObj(table);
+}
+
+bool PbhHelper::addPbhRule(const PbhRule &rule)
+{
+    return this->addPbhObj(rule);
+}
+
+bool PbhHelper::addPbhHash(const PbhHash &hash)
+{
+    return this->addPbhObj(hash);
+}
+
+bool PbhHelper::addPbhHashField(const PbhHashField &hashField)
+{
+    return this->addPbhObj(hashField);
+}
+
+template <typename T>
+bool PbhHelper::updatePbhObj(const T &obj)
+{
+    auto &objMap = this->getPbhObjMap<T>();
+
+    const auto &cit = objMap.find(obj.key);
+    if (cit == objMap.cend())
     {
         return false;
     }
 
-    hash = cit->second;
+    objMap[obj.key] = obj;
 
     return true;
 }
 
-bool PbhManager::getPbhHashField(PbhHashField &hashField, const std::string &key) const
+template bool PbhHelper::updatePbhObj(const PbhTable &obj);
+template bool PbhHelper::updatePbhObj(const PbhRule &obj);
+template bool PbhHelper::updatePbhObj(const PbhHash &obj);
+template bool PbhHelper::updatePbhObj(const PbhHashField &obj);
+
+bool PbhHelper::updatePbhTable(const PbhTable &table)
 {
-    const auto &cit = this->hashFieldMap.find(key);
-    if (cit == this->hashFieldMap.cend())
+    return this->updatePbhObj(table);
+}
+
+bool PbhHelper::updatePbhRule(const PbhRule &rule)
+{
+    return this->updatePbhObj(rule);
+}
+
+bool PbhHelper::updatePbhHash(const PbhHash &hash)
+{
+    return this->updatePbhObj(hash);
+}
+
+bool PbhHelper::updatePbhHashField(const PbhHashField &hashField)
+{
+    return this->updatePbhObj(hashField);
+}
+
+template <typename T>
+bool PbhHelper::removePbhObj(const std::string &key)
+{
+    auto &objMap = this->getPbhObjMap<T>();
+
+    const auto &cit = objMap.find(key);
+    if (cit == objMap.cend())
     {
         return false;
     }
 
-    hashField = cit->second;
+    objMap.erase(cit);
 
     return true;
 }
 
-bool PbhManager::addPbhTable(const PbhTable &table)
+template bool PbhHelper::removePbhObj<PbhTable>(const std::string &key);
+template bool PbhHelper::removePbhObj<PbhRule>(const std::string &key);
+template bool PbhHelper::removePbhObj<PbhHash>(const std::string &key);
+template bool PbhHelper::removePbhObj<PbhHashField>(const std::string &key);
+
+bool PbhHelper::removePbhTable(const std::string &key)
 {
-    const auto &cit = this->tableMap.find(table.key);
-    if (cit != this->tableMap.cend())
-    {
-        return false;
-    }
-
-    this->tableMap[table.key] = table;
-
-    return true;
+    return this->removePbhObj<PbhTable>(key);
 }
 
-bool PbhManager::updatePbhTable(const PbhTable &table)
+bool PbhHelper::removePbhRule(const std::string &key)
 {
-    const auto &cit = this->tableMap.find(table.key);
-    if (cit == this->tableMap.cend())
-    {
-        return false;
-    }
-
-    this->tableMap[table.key] = table;
-
-    return true;
+    return this->removePbhObj<PbhRule>(key);
 }
 
-bool PbhManager::removePbhTable(const std::string &key)
+bool PbhHelper::removePbhHash(const std::string &key)
 {
-    const auto &cit = this->tableMap.find(key);
-    if (cit == this->tableMap.cend())
-    {
-        return false;
-    }
-
-    if (this->tableMap.erase(key) != 1)
-    {
-        return false;
-    }
-
-    return true;
+    return this->removePbhObj<PbhHash>(key);
 }
 
-bool PbhManager::addPbhRule(const PbhRule &rule)
+bool PbhHelper::removePbhHashField(const std::string &key)
 {
-    const auto &cit = this->ruleMap.find(rule.key);
-    if (cit != this->ruleMap.cend())
-    {
-        return false;
-    }
-
-    this->ruleMap[rule.key] = rule;
-
-    return true;
+    return this->removePbhObj<PbhHashField>(key);
 }
 
-bool PbhManager::updatePbhRule(const PbhRule &rule)
-{
-    const auto &cit = this->ruleMap.find(rule.key);
-    if (cit == this->ruleMap.cend())
-    {
-        return false;
-    }
-
-    this->ruleMap[rule.key] = rule;
-
-    return true;
-}
-
-bool PbhManager::removePbhRule(const std::string &key)
-{
-    const auto &cit = this->ruleMap.find(key);
-    if (cit == this->ruleMap.cend())
-    {
-        return false;
-    }
-
-    if (this->ruleMap.erase(key) != 1)
-    {
-        return false;
-    }
-
-    return true;
-}
-
-bool PbhManager::addPbhHash(const PbhHash &hash)
-{
-    const auto &cit = this->hashMap.find(hash.key);
-    if (cit != this->hashMap.cend())
-    {
-        return false;
-    }
-
-    this->hashMap[hash.key] = hash;
-
-    return true;
-}
-
-bool PbhManager::updatePbhHash(const PbhHash &hash)
-{
-    const auto &cit = this->hashMap.find(hash.key);
-    if (cit == this->hashMap.cend())
-    {
-        return false;
-    }
-
-    this->hashMap[hash.key] = hash;
-
-    return true;
-}
-
-bool PbhManager::removePbhHash(const std::string &key)
-{
-    const auto &cit = this->hashMap.find(key);
-    if (cit == this->hashMap.cend())
-    {
-        return false;
-    }
-
-    if (this->hashMap.erase(key) != 1)
-    {
-        return false;
-    }
-
-    return true;
-}
-
-bool PbhManager::addPbhHashField(const PbhHashField &hashField)
-{
-    const auto &cit = this->hashFieldMap.find(hashField.key);
-    if (cit != this->hashFieldMap.cend())
-    {
-        return false;
-    }
-
-    this->hashFieldMap[hashField.key] = hashField;
-
-    return true;
-}
-
-bool PbhManager::updatePbhHashField(const PbhHashField &hashField)
-{
-    const auto &cit = this->hashFieldMap.find(hashField.key);
-    if (cit == this->hashFieldMap.cend())
-    {
-        return false;
-    }
-
-    this->hashFieldMap[hashField.key] = hashField;
-
-    return true;
-}
-
-bool PbhManager::removePbhHashField(const std::string &key)
-{
-    const auto &cit = this->hashFieldMap.find(key);
-    if (cit == this->hashFieldMap.cend())
-    {
-        return false;
-    }
-
-    if (this->hashFieldMap.erase(key) != 1)
-    {
-        return false;
-    }
-
-    return true;
-}
-
-bool PbhManager::parsePbhTableInterfaceList(PbhTable &table, const std::string &field, const std::string &value) const
+bool PbhHelper::parsePbhTableInterfaceList(PbhTable &table, const std::string &field, const std::string &value) const
 {
     SWSS_LOG_ENTER();
 
@@ -498,7 +477,7 @@ bool PbhManager::parsePbhTableInterfaceList(PbhTable &table, const std::string &
     return true;
 }
 
-bool PbhManager::parsePbhTableDescription(PbhTable &table, const std::string &field, const std::string &value) const
+bool PbhHelper::parsePbhTableDescription(PbhTable &table, const std::string &field, const std::string &value) const
 {
     SWSS_LOG_ENTER();
 
@@ -514,7 +493,7 @@ bool PbhManager::parsePbhTableDescription(PbhTable &table, const std::string &fi
     return true;
 }
 
-bool PbhManager::parsePbhTable(PbhTable &table) const
+bool PbhHelper::parsePbhTable(PbhTable &table) const
 {
     SWSS_LOG_ENTER();
 
@@ -546,9 +525,15 @@ bool PbhManager::parsePbhTable(PbhTable &table) const
     return this->validatePbhTable(table);
 }
 
-bool PbhManager::parsePbhRulePriority(PbhRule &rule, const std::string &field, const std::string &value) const
+bool PbhHelper::parsePbhRulePriority(PbhRule &rule, const std::string &field, const std::string &value) const
 {
     SWSS_LOG_ENTER();
+
+    if (value.empty())
+    {
+        SWSS_LOG_ERROR("Failed to parse field(%s): empty value is prohibited", field.c_str());
+        return false;
+    }
 
     try
     {
@@ -564,7 +549,7 @@ bool PbhManager::parsePbhRulePriority(PbhRule &rule, const std::string &field, c
     return true;
 }
 
-bool PbhManager::parsePbhRuleGreKey(PbhRule &rule, const std::string &field, const std::string &value) const
+bool PbhHelper::parsePbhRuleGreKey(PbhRule &rule, const std::string &field, const std::string &value) const
 {
     SWSS_LOG_ENTER();
 
@@ -578,8 +563,8 @@ bool PbhManager::parsePbhRuleGreKey(PbhRule &rule, const std::string &field, con
 
     try
     {
-        rule.gre_key.value = PbhManager::toUInt32(vmList[0]);
-        rule.gre_key.mask = PbhManager::toUInt32(vmList[1]);
+        rule.gre_key.value = toUInt32(vmList.at(0));
+        rule.gre_key.mask = toUInt32(vmList.at(1));
         rule.gre_key.is_set = true;
     }
     catch (const std::exception &e)
@@ -591,22 +576,20 @@ bool PbhManager::parsePbhRuleGreKey(PbhRule &rule, const std::string &field, con
     return true;
 }
 
-bool PbhManager::parsePbhRuleIpProtocol(PbhRule &rule, const std::string &field, const std::string &value) const
+bool PbhHelper::parsePbhRuleIpProtocol(PbhRule &rule, const std::string &field, const std::string &value) const
 {
     SWSS_LOG_ENTER();
 
-    const auto &vmList = tokenize(value, '/');
-
-    if (vmList.size() != 2)
+    if (value.empty())
     {
-        SWSS_LOG_ERROR("Failed to parse field(%s): invalid value(%s)", field.c_str(), value.c_str());
+        SWSS_LOG_ERROR("Failed to parse field(%s): empty value is prohibited", field.c_str());
         return false;
     }
 
     try
     {
-        rule.ip_protocol.value = PbhManager::toUInt8(vmList[0]);
-        rule.ip_protocol.mask = PbhManager::toUInt8(vmList[1]);
+        rule.ip_protocol.value = toUInt8(value);
+        rule.ip_protocol.mask = 0xFF;
         rule.ip_protocol.is_set = true;
     }
     catch (const std::exception &e)
@@ -618,22 +601,20 @@ bool PbhManager::parsePbhRuleIpProtocol(PbhRule &rule, const std::string &field,
     return true;
 }
 
-bool PbhManager::parsePbhRuleIpv6NextHeader(PbhRule &rule, const std::string &field, const std::string &value) const
+bool PbhHelper::parsePbhRuleIpv6NextHeader(PbhRule &rule, const std::string &field, const std::string &value) const
 {
     SWSS_LOG_ENTER();
 
-    const auto &vmList = tokenize(value, '/');
-
-    if (vmList.size() != 2)
+    if (value.empty())
     {
-        SWSS_LOG_ERROR("Failed to parse field(%s): invalid value(%s)", field.c_str(), value.c_str());
+        SWSS_LOG_ERROR("Failed to parse field(%s): empty value is prohibited", field.c_str());
         return false;
     }
 
     try
     {
-        rule.ipv6_next_header.value = PbhManager::toUInt8(vmList[0]);
-        rule.ipv6_next_header.mask = PbhManager::toUInt8(vmList[1]);
+        rule.ipv6_next_header.value = toUInt8(value);
+        rule.ipv6_next_header.mask = 0xFF;
         rule.ipv6_next_header.is_set = true;
     }
     catch (const std::exception &e)
@@ -645,22 +626,20 @@ bool PbhManager::parsePbhRuleIpv6NextHeader(PbhRule &rule, const std::string &fi
     return true;
 }
 
-bool PbhManager::parsePbhRuleL4DstPort(PbhRule &rule, const std::string &field, const std::string &value) const
+bool PbhHelper::parsePbhRuleL4DstPort(PbhRule &rule, const std::string &field, const std::string &value) const
 {
     SWSS_LOG_ENTER();
 
-    const auto &vmList = tokenize(value, '/');
-
-    if (vmList.size() != 2)
+    if (value.empty())
     {
-        SWSS_LOG_ERROR("Failed to parse field(%s): invalid value(%s)", field.c_str(), value.c_str());
+        SWSS_LOG_ERROR("Failed to parse field(%s): empty value is prohibited", field.c_str());
         return false;
     }
 
     try
     {
-        rule.l4_dst_port.value = PbhManager::toUInt16(vmList[0]);
-        rule.l4_dst_port.mask = PbhManager::toUInt16(vmList[1]);
+        rule.l4_dst_port.value = toUInt16(value);
+        rule.l4_dst_port.mask = 0xFFFF;
         rule.l4_dst_port.is_set = true;
     }
     catch (const std::exception &e)
@@ -672,22 +651,20 @@ bool PbhManager::parsePbhRuleL4DstPort(PbhRule &rule, const std::string &field, 
     return true;
 }
 
-bool PbhManager::parsePbhRuleInnerEtherType(PbhRule &rule, const std::string &field, const std::string &value) const
+bool PbhHelper::parsePbhRuleInnerEtherType(PbhRule &rule, const std::string &field, const std::string &value) const
 {
     SWSS_LOG_ENTER();
 
-    const auto &vmList = tokenize(value, '/');
-
-    if (vmList.size() != 2)
+    if (value.empty())
     {
-        SWSS_LOG_ERROR("Failed to parse field(%s): invalid value(%s)", field.c_str(), value.c_str());
+        SWSS_LOG_ERROR("Failed to parse field(%s): empty value is prohibited", field.c_str());
         return false;
     }
 
     try
     {
-        rule.inner_ether_type.value = PbhManager::toUInt16(vmList[0]);
-        rule.inner_ether_type.mask = PbhManager::toUInt16(vmList[1]);
+        rule.inner_ether_type.value = toUInt16(value);
+        rule.inner_ether_type.mask = 0xFFFF;
         rule.inner_ether_type.is_set = true;
     }
     catch (const std::exception &e)
@@ -699,7 +676,7 @@ bool PbhManager::parsePbhRuleInnerEtherType(PbhRule &rule, const std::string &fi
     return true;
 }
 
-bool PbhManager::parsePbhRuleHash(PbhRule &rule, const std::string &field, const std::string &value) const
+bool PbhHelper::parsePbhRuleHash(PbhRule &rule, const std::string &field, const std::string &value) const
 {
     SWSS_LOG_ENTER();
 
@@ -715,7 +692,7 @@ bool PbhManager::parsePbhRuleHash(PbhRule &rule, const std::string &field, const
     return true;
 }
 
-bool PbhManager::parsePbhRulePacketAction(PbhRule &rule, const std::string &field, const std::string &value) const
+bool PbhHelper::parsePbhRulePacketAction(PbhRule &rule, const std::string &field, const std::string &value) const
 {
     SWSS_LOG_ENTER();
 
@@ -726,13 +703,13 @@ bool PbhManager::parsePbhRulePacketAction(PbhRule &rule, const std::string &fiel
         return false;
     }
 
-    rule.packet_action.value = pbhRulePacketActionMap.at(value);
+    rule.packet_action.value = cit->second;
     rule.packet_action.is_set = true;
 
     return true;
 }
 
-bool PbhManager::parsePbhRuleFlowCounter(PbhRule &rule, const std::string &field, const std::string &value) const
+bool PbhHelper::parsePbhRuleFlowCounter(PbhRule &rule, const std::string &field, const std::string &value) const
 {
     SWSS_LOG_ENTER();
 
@@ -743,14 +720,14 @@ bool PbhManager::parsePbhRuleFlowCounter(PbhRule &rule, const std::string &field
         return false;
     }
 
-    rule.flow_counter.name = field;
-    rule.flow_counter.value = pbhRuleFlowCounterMap.at(value);
+    rule.flow_counter.meta.name = field;
+    rule.flow_counter.value = cit->second;
     rule.flow_counter.is_set = true;
 
     return true;
 }
 
-bool PbhManager::parsePbhRule(PbhRule &rule) const
+bool PbhHelper::parsePbhRule(PbhRule &rule) const
 {
     SWSS_LOG_ENTER();
 
@@ -831,7 +808,7 @@ bool PbhManager::parsePbhRule(PbhRule &rule) const
     return this->validatePbhRule(rule);
 }
 
-bool PbhManager::parsePbhHashHashFieldList(PbhHash &hash, const std::string &field, const std::string &value) const
+bool PbhHelper::parsePbhHashHashFieldList(PbhHash &hash, const std::string &field, const std::string &value) const
 {
     SWSS_LOG_ENTER();
 
@@ -854,7 +831,7 @@ bool PbhManager::parsePbhHashHashFieldList(PbhHash &hash, const std::string &fie
     return true;
 }
 
-bool PbhManager::parsePbhHash(PbhHash &hash) const
+bool PbhHelper::parsePbhHash(PbhHash &hash) const
 {
     SWSS_LOG_ENTER();
 
@@ -879,7 +856,7 @@ bool PbhManager::parsePbhHash(PbhHash &hash) const
     return this->validatePbhHash(hash);
 }
 
-bool PbhManager::parsePbhHashFieldHashField(PbhHashField &hashField, const std::string &field, const std::string &value) const
+bool PbhHelper::parsePbhHashFieldHashField(PbhHashField &hashField, const std::string &field, const std::string &value) const
 {
     SWSS_LOG_ENTER();
 
@@ -890,15 +867,21 @@ bool PbhManager::parsePbhHashFieldHashField(PbhHashField &hashField, const std::
         return false;
     }
 
-    hashField.hash_field.value = pbhHashFieldHashFieldMap.at(value);
+    hashField.hash_field.value = cit->second;
     hashField.hash_field.is_set = true;
 
     return true;
 }
 
-bool PbhManager::parsePbhHashFieldIpMask(PbhHashField &hashField, const std::string &field, const std::string &value) const
+bool PbhHelper::parsePbhHashFieldIpMask(PbhHashField &hashField, const std::string &field, const std::string &value) const
 {
     SWSS_LOG_ENTER();
+
+    if (value.empty())
+    {
+        SWSS_LOG_ERROR("Failed to parse field(%s): empty value is prohibited", field.c_str());
+        return false;
+    }
 
     try
     {
@@ -914,9 +897,15 @@ bool PbhManager::parsePbhHashFieldIpMask(PbhHashField &hashField, const std::str
     return true;
 }
 
-bool PbhManager::parsePbhHashFieldSequenceId(PbhHashField &hashField, const std::string &field, const std::string &value) const
+bool PbhHelper::parsePbhHashFieldSequenceId(PbhHashField &hashField, const std::string &field, const std::string &value) const
 {
     SWSS_LOG_ENTER();
+
+    if (value.empty())
+    {
+        SWSS_LOG_ERROR("Failed to parse field(%s): empty value is prohibited", field.c_str());
+        return false;
+    }
 
     try
     {
@@ -932,7 +921,7 @@ bool PbhManager::parsePbhHashFieldSequenceId(PbhHashField &hashField, const std:
     return true;
 }
 
-bool PbhManager::parsePbhHashField(PbhHashField &hashField) const
+bool PbhHelper::parsePbhHashField(PbhHashField &hashField) const
 {
     SWSS_LOG_ENTER();
 
@@ -971,7 +960,7 @@ bool PbhManager::parsePbhHashField(PbhHashField &hashField) const
     return this->validatePbhHashField(hashField);
 }
 
-bool PbhManager::validatePbhTable(PbhTable &table) const
+bool PbhHelper::validatePbhTable(PbhTable &table) const
 {
     SWSS_LOG_ENTER();
 
@@ -990,7 +979,7 @@ bool PbhManager::validatePbhTable(PbhTable &table) const
     return true;
 }
 
-bool PbhManager::validatePbhRule(PbhRule &rule) const
+bool PbhHelper::validatePbhRule(PbhRule &rule) const
 {
     SWSS_LOG_ENTER();
 
@@ -1013,8 +1002,11 @@ bool PbhManager::validatePbhRule(PbhRule &rule) const
             PBH_RULE_PACKET_ACTION,
             PBH_RULE_PACKET_ACTION_SET_ECMP_HASH
         );
+
         rule.packet_action.value = SAI_ACL_ENTRY_ATTR_ACTION_SET_ECMP_HASH_ID;
         rule.packet_action.is_set = true;
+
+        rule.fieldValueMap[PBH_RULE_PACKET_ACTION] = PBH_RULE_PACKET_ACTION_SET_ECMP_HASH;
     }
 
     if (!rule.flow_counter.is_set)
@@ -1024,15 +1016,17 @@ bool PbhManager::validatePbhRule(PbhRule &rule) const
             PBH_RULE_FLOW_COUNTER,
             PBH_RULE_FLOW_COUNTER_DISABLED
         );
-        rule.flow_counter.name = PBH_RULE_FLOW_COUNTER;
+        rule.flow_counter.meta.name = PBH_RULE_FLOW_COUNTER;
         rule.flow_counter.value = false;
         rule.flow_counter.is_set = true;
+
+        rule.fieldValueMap[PBH_RULE_FLOW_COUNTER] = PBH_RULE_FLOW_COUNTER_DISABLED;
     }
 
     return true;
 }
 
-bool PbhManager::validatePbhHash(PbhHash &hash) const
+bool PbhHelper::validatePbhHash(PbhHash &hash) const
 {
     SWSS_LOG_ENTER();
 
@@ -1045,7 +1039,7 @@ bool PbhManager::validatePbhHash(PbhHash &hash) const
     return true;
 }
 
-bool PbhManager::validatePbhHashField(PbhHashField &hashField) const
+bool PbhHelper::validatePbhHashField(PbhHashField &hashField) const
 {
     SWSS_LOG_ENTER();
 
@@ -1084,7 +1078,7 @@ bool PbhManager::validatePbhHashField(PbhHashField &hashField) const
     return true;
 }
 
-bool PbhManager::isIpv4MaskRequired(const sai_native_hash_field_t &value) const
+bool PbhHelper::isIpv4MaskRequired(const sai_native_hash_field_t &value) const
 {
     switch (value)
     {
@@ -1099,7 +1093,7 @@ bool PbhManager::isIpv4MaskRequired(const sai_native_hash_field_t &value) const
     return false;
 }
 
-bool PbhManager::isIpv6MaskRequired(const sai_native_hash_field_t &value) const
+bool PbhHelper::isIpv6MaskRequired(const sai_native_hash_field_t &value) const
 {
     switch (value)
     {

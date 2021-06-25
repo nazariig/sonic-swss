@@ -425,6 +425,11 @@ public:
     sai_object_id_t getTableById(string table_id);
     const AclTable* getTableByOid(sai_object_id_t oid) const;
 
+    static mutex& getCountersMutex()
+    {
+        return m_countersMutex;
+    }
+
     static swss::Table& getCountersTable()
     {
         return m_countersTable;
@@ -447,6 +452,7 @@ public:
     AclRule* getAclRule(string table_id, string rule_id);
 
     bool isCombinedMirrorV6Table();
+    bool isAclMirrorTableSupported(acl_table_type_t type) const;
     bool isAclActionSupported(acl_stage_type_t stage, sai_acl_action_type_t action) const;
     bool isAclActionEnumValueSupported(sai_acl_action_type_t action, sai_acl_action_parameter_t param) const;
 
