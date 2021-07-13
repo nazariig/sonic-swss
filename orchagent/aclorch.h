@@ -320,18 +320,6 @@ public:
     bool validate();
 };
 
-class AclRulePbh: public AclRule
-{
-public:
-    AclRulePbh(AclOrch *pAclOrch, string rule, string table, bool createCounter = false);
-
-    bool validateAddPriority(const sai_uint32_t &value);
-    bool validateAddMatch(const sai_attribute_t &attr);
-    bool validateAddAction(const sai_attribute_t &attr);
-    bool validate() override;
-    void update(SubjectType, void *) override;
-};
-
 class AclTable
 {
 public:
@@ -424,11 +412,6 @@ public:
 
     sai_object_id_t getTableById(string table_id);
     const AclTable* getTableByOid(sai_object_id_t oid) const;
-
-    static mutex& getCountersMutex()
-    {
-        return m_countersMutex;
-    }
 
     static swss::Table& getCountersTable()
     {

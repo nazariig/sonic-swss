@@ -6,6 +6,7 @@
 #include "aclorch.h"
 #include "portsorch.h"
 
+#include "pbh/pbhrule.h"
 #include "pbh/pbhmgr.h"
 
 class PbhOrch final : public Orch

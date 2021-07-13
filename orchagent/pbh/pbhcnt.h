@@ -75,6 +75,12 @@ public:
     } gre_key;
 
     struct {
+        sai_uint16_t value;
+        sai_uint16_t mask;
+        bool is_set = false;
+    } ether_type;
+
+    struct {
         sai_uint8_t value;
         sai_uint8_t mask;
         bool is_set = false;

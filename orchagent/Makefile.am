@@ -51,6 +51,7 @@ orchagent_SOURCES = \
             aclorch.cpp \
             pbh/pbhcnt.cpp \
             pbh/pbhmgr.cpp \
+            pbh/pbhrule.cpp \
             pbhorch.cpp \
             saihelper.cpp \
             switchorch.cpp \

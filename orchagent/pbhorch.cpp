@@ -9,7 +9,6 @@
 #include <string>
 #include <vector>
 #include <set>
-#include <mutex>
 
 #include "schema.h"
 #include "tokenize.h"
@@ -130,14 +129,10 @@ bool PbhOrch::createPbhTable(const PbhTable &table)
         return false;
     }
 
+    if (!this->aclOrch->addAclTable(pbhTable))
     {
-        std::lock_guard<std::mutex> lock(AclOrch::getCountersMutex());
-
-        if (!this->aclOrch->addAclTable(pbhTable))
-        {
-            SWSS_LOG_ERROR("Failed to create PBH table(%s) in SAI", table.key.c_str());
-            return false;
-        }
+        SWSS_LOG_ERROR("Failed to create PBH table(%s) in SAI", table.key.c_str());
+        return false;
     }
 
     if (!this->pbhHlpr.addPbhTable(table))
@@ -179,14 +174,10 @@ bool PbhOrch::updatePbhTable(const PbhTable &table)
         pbhTable.setDescription(table.description.value);
     }
 
+    if (!this->aclOrch->updateAclTable(table.name, pbhTable))
     {
-        std::lock_guard<std::mutex> lock(AclOrch::getCountersMutex());
-
-        if (!this->aclOrch->updateAclTable(table.name, pbhTable))
-        {
-            SWSS_LOG_ERROR("Failed to update PBH table(%s) in SAI", table.key.c_str());
-            return false;
-        }
+        SWSS_LOG_ERROR("Failed to update PBH table(%s) in SAI", table.key.c_str());
+        return false;
     }
 
     if (!this->pbhHlpr.updatePbhTable(table))
@@ -212,14 +203,10 @@ bool PbhOrch::removePbhTable(const PbhTable &table)
         return false;
     }
 
+    if (!this->aclOrch->removeAclTable(table.name))
     {
-        std::lock_guard<std::mutex> lock(AclOrch::getCountersMutex());
-
-        if (!this->aclOrch->removeAclTable(table.name))
-        {
-            SWSS_LOG_ERROR("Failed to remove PBH table(%s) from SAI", table.key.c_str());
-            return false;
-        }
+        SWSS_LOG_ERROR("Failed to remove PBH table(%s) from SAI", table.key.c_str());
+        return false;
     }
 
     if (!this->pbhHlpr.removePbhTable(table.key))
@@ -355,6 +342,22 @@ bool PbhOrch::createPbhRule(const PbhRule &rule)
         }
     }
 
+    if (rule.ether_type.is_set)
+    {
+        sai_attribute_t attr;
+
+        attr.id = SAI_ACL_ENTRY_ATTR_FIELD_ETHER_TYPE;
+        attr.value.aclfield.enable = true;
+        attr.value.aclfield.data.u16 = rule.ether_type.value;
+        attr.value.aclfield.mask.u16 = rule.ether_type.mask;
+
+        if (!pbhRule->validateAddMatch(attr))
+        {
+            SWSS_LOG_ERROR("Failed to configure PBH rule(%s) match: ETHER_TYPE", rule.key.c_str());
+            return false;
+        }
+    }
+
     if (rule.ip_protocol.is_set)
     {
         sai_attribute_t attr;
@@ -445,14 +448,10 @@ bool PbhOrch::createPbhRule(const PbhRule &rule)
         return false;
     }
 
+    if (!this->aclOrch->addAclRule(pbhRule, rule.table))
     {
-        std::lock_guard<std::mutex> lock(AclOrch::getCountersMutex());
-
-        if (!this->aclOrch->addAclRule(pbhRule, rule.table))
-        {
-            SWSS_LOG_ERROR("Failed to create PBH rule(%s) in SAI", rule.key.c_str());
-            return false;
-        }
+        SWSS_LOG_ERROR("Failed to create PBH rule(%s) in SAI", rule.key.c_str());
+        return false;
     }
 
     if (!this->pbhHlpr.addPbhRule(rule))
@@ -461,7 +460,7 @@ bool PbhOrch::createPbhRule(const PbhRule &rule)
         return false;
     }
 
-    if (!this->pbhHlpr.addDependencies(rule))
+    if (!this->pbhHlpr.incRefCount(rule))
     {
         SWSS_LOG_ERROR("Failed to add PBH rule(%s) dependencies", rule.key.c_str());
         return false;
@@ -523,14 +522,10 @@ bool PbhOrch::updatePbhRule(const PbhRule &rule)
         return true;
     }
 
+    if (!this->aclOrch->updateAclRule(rule.table, rule.name, rule.flow_counter.value))
     {
-        std::lock_guard<std::mutex> lock(AclOrch::getCountersMutex());
-
-        if (!this->aclOrch->updateAclRule(rule.table, rule.name, rule.flow_counter.value))
-        {
-            SWSS_LOG_ERROR("Failed to update PBH rule(%s) in SAI", rule.key.c_str());
-            return false;
-        }
+        SWSS_LOG_ERROR("Failed to update PBH rule(%s) in SAI", rule.key.c_str());
+        return false;
     }
 
     if (!this->pbhHlpr.updatePbhRule(rule))
@@ -556,14 +551,10 @@ bool PbhOrch::removePbhRule(const PbhRule &rule)
         return false;
     }
 
+    if (!this->aclOrch->removeAclRule(rObj.table, rObj.name))
     {
-        std::lock_guard<std::mutex> lock(AclOrch::getCountersMutex());
-
-        if (!this->aclOrch->removeAclRule(rObj.table, rObj.name))
-        {
-            SWSS_LOG_ERROR("Failed to remove PBH rule(%s) from SAI", rObj.key.c_str());
-            return false;
-        }
+        SWSS_LOG_ERROR("Failed to remove PBH rule(%s) from SAI", rObj.key.c_str());
+        return false;
     }
 
     if (!this->pbhHlpr.removePbhRule(rObj.key))
@@ -572,7 +563,7 @@ bool PbhOrch::removePbhRule(const PbhRule &rule)
         return false;
     }
 
-    if (!this->pbhHlpr.removeDependencies(rObj))
+    if (!this->pbhHlpr.decRefCount(rObj))
     {
         SWSS_LOG_ERROR("Failed to remove PBH rule(%s) dependencies", rObj.key.c_str());
         return false;
@@ -724,7 +715,7 @@ bool PbhOrch::createPbhHash(const PbhHash &hash)
         return false;
     }
 
-    if (!this->pbhHlpr.addDependencies(hObj))
+    if (!this->pbhHlpr.incRefCount(hObj))
     {
         SWSS_LOG_ERROR("Failed to add PBH hash(%s) dependencies", hObj.key.c_str());
         return false;
@@ -803,7 +794,7 @@ bool PbhOrch::removePbhHash(const PbhHash &hash)
         return false;
     }
 
-    if (!this->pbhHlpr.removeDependencies(hObj))
+    if (!this->pbhHlpr.decRefCount(hObj))
     {
         SWSS_LOG_ERROR("Failed to remove PBH hash(%s) dependencies", hObj.key.c_str());
         return false;

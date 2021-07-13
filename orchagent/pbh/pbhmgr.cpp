@@ -29,6 +29,7 @@ using namespace swss;
 
 #define PBH_RULE_PRIORITY         "priority"
 #define PBH_RULE_GRE_KEY          "gre_key"
+#define PBH_RULE_ETHER_TYPE       "ether_type"
 #define PBH_RULE_IP_PROTOCOL      "ip_protocol"
 #define PBH_RULE_IPV6_NEXT_HEADER "ipv6_next_header"
 #define PBH_RULE_L4_DST_PORT      "l4_dst_port"
@@ -145,7 +146,7 @@ bool PbhHelper::validateDependencies(const PbhHash &obj) const
 }
 
 template<>
-bool PbhHelper::addDependencies(const PbhRule &obj)
+bool PbhHelper::incRefCount(const PbhRule &obj)
 {
     const auto &tCit = this->tableMap.find(obj.table);
     if (tCit == this->tableMap.cend())
@@ -169,7 +170,7 @@ bool PbhHelper::addDependencies(const PbhRule &obj)
 }
 
 template<>
-bool PbhHelper::addDependencies(const PbhHash &obj)
+bool PbhHelper::incRefCount(const PbhHash &obj)
 {
     std::vector<std::unordered_map<std::string, PbhHashField>::iterator> itList;
 
@@ -194,7 +195,7 @@ bool PbhHelper::addDependencies(const PbhHash &obj)
 }
 
 template<>
-bool PbhHelper::removeDependencies(const PbhRule &obj)
+bool PbhHelper::decRefCount(const PbhRule &obj)
 {
     const auto &tCit = this->tableMap.find(obj.table);
     if (tCit == this->tableMap.cend())
@@ -218,7 +219,7 @@ bool PbhHelper::removeDependencies(const PbhRule &obj)
 }
 
 template<>
-bool PbhHelper::removeDependencies(const PbhHash &obj)
+bool PbhHelper::decRefCount(const PbhHash &obj)
 {
     std::vector<std::unordered_map<std::string, PbhHashField>::iterator> itList;
 
@@ -576,6 +577,31 @@ bool PbhHelper::parsePbhRuleGreKey(PbhRule &rule, const std::string &field, cons
     return true;
 }
 
+bool PbhHelper::parsePbhRuleEtherType(PbhRule &rule, const std::string &field, const std::string &value) const
+{
+    SWSS_LOG_ENTER();
+
+    if (value.empty())
+    {
+        SWSS_LOG_ERROR("Failed to parse field(%s): empty value is prohibited", field.c_str());
+        return false;
+    }
+
+    try
+    {
+        rule.ether_type.value = toUInt16(value);
+        rule.ether_type.mask = 0xFFFF;
+        rule.ether_type.is_set = true;
+    }
+    catch (const std::exception &e)
+    {
+        SWSS_LOG_ERROR("Failed to parse field(%s): %s", field.c_str(), e.what());
+        return false;
+    }
+
+    return true;
+}
+
 bool PbhHelper::parsePbhRuleIpProtocol(PbhRule &rule, const std::string &field, const std::string &value) const
 {
     SWSS_LOG_ENTER();
@@ -746,6 +772,13 @@ bool PbhHelper::parsePbhRule(PbhRule &rule) const
         else if (field == PBH_RULE_GRE_KEY)
         {
             if (!this->parsePbhRuleGreKey(rule, field, value))
+            {
+                return false;
+            }
+        }
+        else if (field == PBH_RULE_ETHER_TYPE)
+        {
+            if (!this->parsePbhRuleEtherType(rule, field, value))
             {
                 return false;
             }

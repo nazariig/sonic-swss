@@ -11,10 +11,11 @@ public:
     bool hasDependencies(const PbhContainer &obj) const;
     template<typename T>
     bool validateDependencies(const T &obj) const;
+
     template<typename T>
-    bool addDependencies(const T &obj);
+    bool incRefCount(const T &obj);
     template<typename T>
-    bool removeDependencies(const T &obj);
+    bool decRefCount(const T &obj);
 
     bool getPbhTable(PbhTable &table, const std::string &key) const;
     bool getPbhRule(PbhRule &rule, const std::string &key) const;
@@ -63,6 +64,7 @@ private:
 
     bool parsePbhRulePriority(PbhRule &rule, const std::string &field, const std::string &value) const;
     bool parsePbhRuleGreKey(PbhRule &rule, const std::string &field, const std::string &value) const;
+    bool parsePbhRuleEtherType(PbhRule &rule, const std::string &field, const std::string &value) const;
     bool parsePbhRuleIpProtocol(PbhRule &rule, const std::string &field, const std::string &value) const;
     bool parsePbhRuleIpv6NextHeader(PbhRule &rule, const std::string &field, const std::string &value) const;
     bool parsePbhRuleL4DstPort(PbhRule &rule, const std::string &field, const std::string &value) const;
