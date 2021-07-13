@@ -11,6 +11,8 @@ PBH_HASH_HASH_FIELD_LIST = ["inner_ip_proto"]
 
 PBH_RULE_NAME = "nvgre"
 PBH_RULE_PRIORITY = "1"
+PBH_RULE_ETHER_TYPE = "0x0800"
+PBH_RULE_IP_PROTOCOL = "0x2f"
 PBH_RULE_GRE_KEY = "0x2500/0xffffff00"
 PBH_RULE_INNER_ETHER_TYPE = "0x86dd"
 PBH_RULE_HASH = "inner_v4_hash"
@@ -214,6 +216,8 @@ class TestPbhBasicFlows:
 
             # PBH rule
             attr_dict = {
+                "ether_type": PBH_RULE_ETHER_TYPE,
+                "ip_protocol": PBH_RULE_IP_PROTOCOL,
                 "gre_key": PBH_RULE_GRE_KEY,
                 "inner_ether_type": PBH_RULE_INNER_ETHER_TYPE
             }
@@ -632,6 +636,8 @@ class TestPbhExtendedFlows:
                 "table": pbh_table["name"],
                 "name": "nvgre",
                 "priority": "1",
+                "ether_type": "0x0800",
+                "ip_protocol": "0x2f",
                 "gre_key": "0x2500/0xffffff00",
                 "inner_ether_type": "0x86dd",
                 "hash": pbh_inner_v6["name"],
@@ -659,6 +665,7 @@ class TestPbhExtendedFlows:
                 "table": pbh_table["name"],
                 "name": "vxlan",
                 "priority": "2",
+                "ether_type": "0x0800",
                 "ip_protocol": "0x11",
                 "l4_dst_port": "0x12b5",
                 "inner_ether_type": "0x0800",
@@ -678,6 +685,107 @@ class TestPbhExtendedFlows:
 
     def test_PbhNvgreVxlanConfiguration(self, testlog, pbh_nvgre, pbh_vxlan):
         pass
+
+
+class TestPbhDependencyFlows:
+    def test_PbhHashCreationDeletionWithDependencies(self, testlog):
+        try:
+            # PBH hash
+            pbhlogger.info("Create PBH hash: {}".format(PBH_HASH_NAME))
+            self.dvs_pbh.create_pbh_hash(
+                hash_name=PBH_HASH_NAME,
+                hash_field_list=PBH_HASH_HASH_FIELD_LIST
+            )
+            self.dvs_pbh.verify_pbh_hash_count(0)
+
+            # PBH hash field
+            pbhlogger.info("Create PBH hash field: {}".format(PBH_HASH_FIELD_NAME))
+            self.dvs_pbh.create_pbh_hash_field(
+                hash_field_name=PBH_HASH_FIELD_NAME,
+                hash_field=PBH_HASH_FIELD_HASH_FIELD,
+                sequence_id=PBH_HASH_FIELD_SEQUENCE_ID
+            )
+            self.dvs_pbh.verify_pbh_hash_field_count(1)
+            self.dvs_pbh.verify_pbh_hash_count(1)
+        finally:
+            # PBH hash
+            pbhlogger.info("Remove PBH hash: {}".format(PBH_HASH_NAME))
+            self.dvs_pbh.remove_pbh_hash(PBH_HASH_NAME)
+            self.dvs_pbh.verify_pbh_hash_count(0)
+
+            # PBH hash field
+            pbhlogger.info("Remove PBH hash field: {}".format(PBH_HASH_FIELD_NAME))
+            self.dvs_pbh.remove_pbh_hash_field(PBH_HASH_FIELD_NAME)
+            self.dvs_pbh.verify_pbh_hash_field_count(0)
+
+    def test_PbhRuleCreationDeletionWithDependencies(self, testlog):
+        try:
+            # PBH hash
+            pbhlogger.info("Create PBH hash: {}".format(PBH_HASH_NAME))
+            self.dvs_pbh.create_pbh_hash(
+                hash_name=PBH_HASH_NAME,
+                hash_field_list=PBH_HASH_HASH_FIELD_LIST
+            )
+            self.dvs_pbh.verify_pbh_hash_count(0)
+
+            # PBH hash field
+            pbhlogger.info("Create PBH hash field: {}".format(PBH_HASH_FIELD_NAME))
+            self.dvs_pbh.create_pbh_hash_field(
+                hash_field_name=PBH_HASH_FIELD_NAME,
+                hash_field=PBH_HASH_FIELD_HASH_FIELD,
+                sequence_id=PBH_HASH_FIELD_SEQUENCE_ID
+            )
+            self.dvs_pbh.verify_pbh_hash_field_count(1)
+            self.dvs_pbh.verify_pbh_hash_count(1)
+
+            # PBH rule
+            attr_dict = {
+                "ether_type": PBH_RULE_ETHER_TYPE,
+                "ip_protocol": PBH_RULE_IP_PROTOCOL,
+                "gre_key": PBH_RULE_GRE_KEY,
+                "inner_ether_type": PBH_RULE_INNER_ETHER_TYPE
+            }
+
+            pbhlogger.info("Create PBH rule: {}".format(PBH_RULE_NAME))
+            self.dvs_pbh.create_pbh_rule(
+                table_name=PBH_TABLE_NAME,
+                rule_name=PBH_RULE_NAME,
+                priority=PBH_RULE_PRIORITY,
+                qualifiers=attr_dict,
+                hash_name=PBH_RULE_HASH
+            )
+            self.dvs_acl.verify_acl_rule_count(0)
+
+            # PBH table
+            pbhlogger.info("Create PBH table: {}".format(PBH_TABLE_NAME))
+            self.dvs_pbh.create_pbh_table(
+                table_name=PBH_TABLE_NAME,
+                interface_list=PBH_TABLE_INTERFACE_LIST,
+                description=PBH_TABLE_DESCRIPTION
+            )
+            self.dvs_acl.verify_acl_table_count(1)
+            self.dvs_acl.verify_acl_rule_count(1)
+
+        finally:
+            # PBH rule
+            pbhlogger.info("Remove PBH rule: {}".format(PBH_RULE_NAME))
+            self.dvs_pbh.remove_pbh_rule(PBH_TABLE_NAME, PBH_RULE_NAME)
+            self.dvs_acl.verify_acl_rule_count(0)
+
+            # PBH table
+            pbhlogger.info("Remove PBH table: {}".format(PBH_TABLE_NAME))
+            self.dvs_pbh.remove_pbh_table(PBH_TABLE_NAME)
+            self.dvs_acl.verify_acl_table_count(0)
+
+            # PBH hash
+            pbhlogger.info("Remove PBH hash: {}".format(PBH_HASH_NAME))
+            self.dvs_pbh.remove_pbh_hash(PBH_HASH_NAME)
+            self.dvs_pbh.verify_pbh_hash_count(0)
+
+            # PBH hash field
+            pbhlogger.info("Remove PBH hash field: {}".format(PBH_HASH_FIELD_NAME))
+            self.dvs_pbh.remove_pbh_hash_field(PBH_HASH_FIELD_NAME)
+            self.dvs_pbh.verify_pbh_hash_field_count(0)
 
 
 # Add Dummy always-pass test at end as workaroud
