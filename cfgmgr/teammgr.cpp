@@ -10,6 +10,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <future>
 #include <thread>
 
 #include <net/if.h>
@@ -112,18 +113,25 @@ void TeamMgr::doTask(Consumer &consumer)
     }
 }
 
-
 void TeamMgr::cleanTeamProcesses()
 {
     SWSS_LOG_ENTER();
     SWSS_LOG_NOTICE("Cleaning up LAGs during shutdown...");
+
+    std::vector<std::future<bool>> tasks;
+
     for (const auto& it: m_lagList)
     {
-        //This will call team -k kill -t <teamdevicename> which internally send SIGTERM 
-        removeLag(it);
+        // This will call team -k kill -t <teamdevicename> which internally send SIGTERM
+        tasks.push_back(std::async(std::launch::async, &TeamMgr::removeLag, this, it));
     }
 
-    return;
+    for (auto& it: tasks)
+    {
+        it.get();
+    }
+
+    SWSS_LOG_NOTICE("LAGs cleanup is done");
 }
 
 void TeamMgr::doLagTask(Consumer &consumer)
