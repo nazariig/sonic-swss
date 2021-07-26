@@ -708,14 +708,15 @@ class TestPbhDependencyFlows:
             self.dvs_pbh.verify_pbh_hash_field_count(1)
             self.dvs_pbh.verify_pbh_hash_count(1)
         finally:
+            # PBH hash field
+            pbhlogger.info("Remove PBH hash field: {}".format(PBH_HASH_FIELD_NAME))
+            self.dvs_pbh.remove_pbh_hash_field(PBH_HASH_FIELD_NAME)
+            self.dvs_pbh.verify_pbh_hash_field_count(1)
+
             # PBH hash
             pbhlogger.info("Remove PBH hash: {}".format(PBH_HASH_NAME))
             self.dvs_pbh.remove_pbh_hash(PBH_HASH_NAME)
             self.dvs_pbh.verify_pbh_hash_count(0)
-
-            # PBH hash field
-            pbhlogger.info("Remove PBH hash field: {}".format(PBH_HASH_FIELD_NAME))
-            self.dvs_pbh.remove_pbh_hash_field(PBH_HASH_FIELD_NAME)
             self.dvs_pbh.verify_pbh_hash_field_count(0)
 
     def test_PbhRuleCreationDeletionWithDependencies(self, testlog):
@@ -767,24 +768,26 @@ class TestPbhDependencyFlows:
             self.dvs_acl.verify_acl_rule_count(1)
 
         finally:
+            # PBH table
+            pbhlogger.info("Remove PBH table: {}".format(PBH_TABLE_NAME))
+            self.dvs_pbh.remove_pbh_table(PBH_TABLE_NAME)
+            self.dvs_acl.verify_acl_table_count(1)
+
             # PBH rule
             pbhlogger.info("Remove PBH rule: {}".format(PBH_RULE_NAME))
             self.dvs_pbh.remove_pbh_rule(PBH_TABLE_NAME, PBH_RULE_NAME)
             self.dvs_acl.verify_acl_rule_count(0)
-
-            # PBH table
-            pbhlogger.info("Remove PBH table: {}".format(PBH_TABLE_NAME))
-            self.dvs_pbh.remove_pbh_table(PBH_TABLE_NAME)
             self.dvs_acl.verify_acl_table_count(0)
+
+            # PBH hash field
+            pbhlogger.info("Remove PBH hash field: {}".format(PBH_HASH_FIELD_NAME))
+            self.dvs_pbh.remove_pbh_hash_field(PBH_HASH_FIELD_NAME)
+            self.dvs_pbh.verify_pbh_hash_field_count(1)
 
             # PBH hash
             pbhlogger.info("Remove PBH hash: {}".format(PBH_HASH_NAME))
             self.dvs_pbh.remove_pbh_hash(PBH_HASH_NAME)
             self.dvs_pbh.verify_pbh_hash_count(0)
-
-            # PBH hash field
-            pbhlogger.info("Remove PBH hash field: {}".format(PBH_HASH_FIELD_NAME))
-            self.dvs_pbh.remove_pbh_hash_field(PBH_HASH_FIELD_NAME)
             self.dvs_pbh.verify_pbh_hash_field_count(0)
 
 
