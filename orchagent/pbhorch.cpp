@@ -81,6 +81,89 @@ PbhOrch::~PbhOrch()
 
 }
 
+template<>
+auto PbhOrch::getPbhSetupTaskMap() const -> const std::unordered_map<std::string, PbhTable>&
+{
+    return this->pbhHlpr.tableTask.pendingSetupMap;
+}
+
+template<>
+auto PbhOrch::getPbhSetupTaskMap() const -> const std::unordered_map<std::string, PbhRule>&
+{
+    return this->pbhHlpr.ruleTask.pendingSetupMap;
+}
+
+template<>
+auto PbhOrch::getPbhSetupTaskMap() const -> const std::unordered_map<std::string, PbhHash>&
+{
+    return this->pbhHlpr.hashTask.pendingSetupMap;
+}
+
+template<>
+auto PbhOrch::getPbhSetupTaskMap() const -> const std::unordered_map<std::string, PbhHashField>&
+{
+    return this->pbhHlpr.hashFieldTask.pendingSetupMap;
+}
+
+template<typename T>
+bool PbhOrch::pbhSetupTaskExists(const T &obj) const
+{
+    const auto &taskMap = this->getPbhSetupTaskMap<T>();
+    return taskMap.find(obj.key) != taskMap.cend();
+}
+
+template bool PbhOrch::pbhSetupTaskExists(const PbhTable &obj) const;
+template bool PbhOrch::pbhSetupTaskExists(const PbhRule &obj) const;
+template bool PbhOrch::pbhSetupTaskExists(const PbhHash &obj) const;
+template bool PbhOrch::pbhSetupTaskExists(const PbhHashField &obj) const;
+
+template<>
+auto PbhOrch::getPbhRemoveTaskMap() const -> const std::unordered_map<std::string, PbhTable>&
+{
+    return this->pbhHlpr.tableTask.pendingRemoveMap;
+}
+
+template<>
+auto PbhOrch::getPbhRemoveTaskMap() const -> const std::unordered_map<std::string, PbhRule>&
+{
+    return this->pbhHlpr.ruleTask.pendingRemoveMap;
+}
+
+template<>
+auto PbhOrch::getPbhRemoveTaskMap() const -> const std::unordered_map<std::string, PbhHash>&
+{
+    return this->pbhHlpr.hashTask.pendingRemoveMap;
+}
+
+template<>
+auto PbhOrch::getPbhRemoveTaskMap() const -> const std::unordered_map<std::string, PbhHashField>&
+{
+    return this->pbhHlpr.hashFieldTask.pendingRemoveMap;
+}
+
+template<typename T>
+bool PbhOrch::pbhRemoveTaskExists(const T &obj) const
+{
+    const auto &taskMap = this->getPbhRemoveTaskMap<T>();
+    return taskMap.find(obj.key) != taskMap.cend();
+}
+
+template bool PbhOrch::pbhRemoveTaskExists(const PbhTable &obj) const;
+template bool PbhOrch::pbhRemoveTaskExists(const PbhRule &obj) const;
+template bool PbhOrch::pbhRemoveTaskExists(const PbhHash &obj) const;
+template bool PbhOrch::pbhRemoveTaskExists(const PbhHashField &obj) const;
+
+template<typename T>
+bool PbhOrch::pbhTaskExists(const T &obj) const
+{
+    return this->pbhRemoveTaskExists(obj) || this->pbhSetupTaskExists(obj);
+}
+
+template bool PbhOrch::pbhTaskExists(const PbhTable &obj) const;
+template bool PbhOrch::pbhTaskExists(const PbhRule &obj) const;
+template bool PbhOrch::pbhTaskExists(const PbhHash &obj) const;
+template bool PbhOrch::pbhTaskExists(const PbhHashField &obj) const;
+
 // PBH table ----------------------------------------------------------------------------------------------------------
 
 bool PbhOrch::createPbhTable(const PbhTable &table)
@@ -1115,15 +1198,15 @@ void PbhOrch::deployPbhHashFieldRemoveTasks()
 
 void PbhOrch::deployPbhTasks()
 {
-    this->deployPbhHashFieldSetupTasks();
-    this->deployPbhHashSetupTasks();
-    this->deployPbhTableSetupTasks();
-    this->deployPbhRuleSetupTasks();
-
     this->deployPbhRuleRemoveTasks();
     this->deployPbhTableRemoveTasks();
     this->deployPbhHashRemoveTasks();
     this->deployPbhHashFieldRemoveTasks();
+
+    this->deployPbhHashFieldSetupTasks();
+    this->deployPbhHashSetupTasks();
+    this->deployPbhTableSetupTasks();
+    this->deployPbhRuleSetupTasks();
 }
 
 void PbhOrch::doPbhTableTask(Consumer &consumer)
@@ -1150,6 +1233,13 @@ void PbhOrch::doPbhTableTask(Consumer &consumer)
 
         PbhTable table(key, op);
         table.name = key;
+
+        if (this->pbhTaskExists(table))
+        {
+            SWSS_LOG_WARN("Unable to process PBH table(%s): task already exists: adding a retry", key.c_str());
+            it++;
+            continue;
+        }
 
         if (op == SET_COMMAND)
         {
@@ -1212,6 +1302,13 @@ void PbhOrch::doPbhRuleTask(Consumer &consumer)
         rule.name = ruleName;
         rule.table = tableName;
 
+        if (this->pbhTaskExists(rule))
+        {
+            SWSS_LOG_WARN("Unable to process PBH rule(%s): task already exists: adding a retry", key.c_str());
+            it++;
+            continue;
+        }
+
         if (op == SET_COMMAND)
         {
             for (const auto &cit : kfvFieldsValues(keyOpFieldsValues))
@@ -1266,6 +1363,13 @@ void PbhOrch::doPbhHashTask(Consumer &consumer)
 
         PbhHash hash(key, op);
 
+        if (this->pbhTaskExists(hash))
+        {
+            SWSS_LOG_WARN("Unable to process PBH hash(%s): task already exists: adding a retry", key.c_str());
+            it++;
+            continue;
+        }
+
         if (op == SET_COMMAND)
         {
             for (const auto &cit : kfvFieldsValues(keyOpFieldsValues))
@@ -1319,6 +1423,13 @@ void PbhOrch::doPbhHashFieldTask(Consumer &consumer)
         }
 
         PbhHashField hashField(key, op);
+
+        if (this->pbhTaskExists(hashField))
+        {
+            SWSS_LOG_WARN("Unable to process PBH hash field(%s): task already exists: adding a retry", key.c_str());
+            it++;
+            continue;
+        }
 
         if (op == SET_COMMAND)
         {

@@ -498,8 +498,6 @@ bool AclRule::create()
         return false;
     }
 
-    SWSS_LOG_INFO("Created counter for the rule %s in table %s", m_id.c_str(), m_tableId.c_str());
-
     // store table oid this rule belongs to
     attr.id = SAI_ACL_ENTRY_ATTR_TABLE_ID;
     attr.value.oid = table_oid;
@@ -870,6 +868,8 @@ bool AclRule::createCounter()
 
     gCrmOrch->incCrmAclTableUsedCounter(CrmResourceType::CRM_ACL_COUNTER, m_tableOid);
 
+    SWSS_LOG_INFO("Created counter for the rule %s in table %s", m_id.c_str(), m_tableId.c_str());
+
     return true;
 }
 
@@ -908,6 +908,8 @@ bool AclRule::removeCounter()
     AclOrch::getCountersTable().del(getTableId() + ":" + getId());
 
     m_counterOid = SAI_NULL_OBJECT_ID;
+
+    SWSS_LOG_INFO("Removed counter for the rule %s in table %s", m_id.c_str(), m_tableId.c_str());
 
     return true;
 }

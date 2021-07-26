@@ -22,6 +22,19 @@ public:
     using Orch::doTask;  // Allow access to the basic doTask
 
 private:
+    template<typename T>
+    auto getPbhSetupTaskMap() const -> const std::unordered_map<std::string, T>&;
+    template<typename T>
+    auto getPbhRemoveTaskMap() const -> const std::unordered_map<std::string, T>&;
+
+    template<typename T>
+    bool pbhSetupTaskExists(const T &obj) const;
+    template<typename T>
+    bool pbhRemoveTaskExists(const T &obj) const;
+
+    template<typename T>
+    bool pbhTaskExists(const T &obj) const;
+
     bool createPbhTable(const PbhTable &table);
     bool updatePbhTable(const PbhTable &table);
     bool removePbhTable(const PbhTable &table);
