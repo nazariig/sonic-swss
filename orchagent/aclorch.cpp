@@ -156,31 +156,17 @@ static acl_ip_type_lookup_t aclIpTypeLookup =
 };
 
 AclRule::AclRule(AclOrch *pAclOrch, string rule, string table, acl_table_type_t type, bool createCounter) :
-        m_pAclOrch(pAclOrch),
-        m_id(rule),
-        m_tableId(table),
-        m_tableType(type),
-        m_tableOid(SAI_NULL_OBJECT_ID),
-        m_ruleOid(SAI_NULL_OBJECT_ID),
-        m_counterOid(SAI_NULL_OBJECT_ID),
-        m_priority(0),
-        m_createCounter(createCounter)
+    m_pAclOrch(pAclOrch),
+    m_id(rule),
+    m_tableId(table),
+    m_tableType(type),
+    m_tableOid(SAI_NULL_OBJECT_ID),
+    m_ruleOid(SAI_NULL_OBJECT_ID),
+    m_counterOid(SAI_NULL_OBJECT_ID),
+    m_priority(0),
+    m_createCounter(createCounter)
 {
     m_tableOid = pAclOrch->getTableById(m_tableId);
-}
-
-AclRule::AclRule(AclOrch *pAclOrch, string rule, string table, bool createCounter) :
-        m_pAclOrch(pAclOrch),
-        m_id(rule),
-        m_tableId(table),
-        m_tableOid(SAI_NULL_OBJECT_ID),
-        m_ruleOid(SAI_NULL_OBJECT_ID),
-        m_counterOid(SAI_NULL_OBJECT_ID),
-        m_priority(0),
-        m_createCounter(createCounter)
-{
-    m_tableOid = pAclOrch->getTableById(m_tableId);
-    m_tableType = pAclOrch->getTableByOid(m_tableOid)->type;
 }
 
 bool AclRule::validateAddPriority(string attr_name, string attr_value)
@@ -1415,6 +1401,16 @@ bool AclRuleMclag::validate()
     }
 
     return true;
+}
+
+AclTable::AclTable(AclOrch *pAclOrch, string id) noexcept : m_pAclOrch(pAclOrch), id(id)
+{
+
+}
+
+AclTable::AclTable(AclOrch *pAclOrch) noexcept : m_pAclOrch(pAclOrch)
+{
+
 }
 
 bool AclTable::validateAddType(const acl_table_type_t &value)
