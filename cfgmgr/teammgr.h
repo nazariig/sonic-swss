@@ -2,6 +2,7 @@
 
 #include <set>
 #include <string>
+#include <unordered_map>
 
 #include "dbconnector.h"
 #include "netmsg.h"
@@ -32,7 +33,7 @@ private:
     ProducerStateTable m_appLagTable;
 
     std::set<std::string> m_lagList;
-    std::map<std::string, pid_t> m_lagPIDList;
+    std::unordered_map<std::string, pid_t> m_lagPidMap;
 
     MacAddress m_mac;
 
@@ -50,7 +51,11 @@ private:
     bool setLagMtu(const std::string &alias, const std::string &mtu);
     bool setLagLearnMode(const std::string &alias, const std::string &learn_mode);
     bool setLagTpid(const std::string &alias, const std::string &tpid);
- 
+
+    bool readLagPid(pid_t &pid, const std::string &alias) const;
+    bool getLagPid(pid_t &pid, const std::string &alias) const;
+    void addLagPid(const std::string &alias);
+    void removeLagPid(const std::string &alias);
 
     bool isPortEnslaved(const std::string &);
     bool findPortMaster(std::string &, const std::string &);

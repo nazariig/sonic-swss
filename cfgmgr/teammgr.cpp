@@ -16,7 +16,10 @@
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <signal.h>
+#include <time.h>
 
+#define PID_DIR "/var/run/teamd/"
+#define PID_EXT ".pid"
 
 using namespace std;
 using namespace swss;
@@ -117,45 +120,40 @@ void TeamMgr::cleanTeamProcesses()
     SWSS_LOG_ENTER();
     SWSS_LOG_NOTICE("Cleaning up LAGs during shutdown...");
 
-    std::unordered_map<std::string, pid_t> aliasPidMap;
+    struct timespec req = {.tv_sec = 0, .tv_nsec = 100000}; // 100 usec
 
     for (const auto& alias: m_lagList)
     {
-        std::string res;
         pid_t pid;
 
+        if (!getLagPid(pid, alias))
         {
-            std::stringstream cmd;
-            cmd << "cat " << shellquote("/var/run/teamd/" + alias + ".pid");
-            EXEC_WITH_ERROR_THROW(cmd.str(), res);
-
-            pid = static_cast<pid_t>(std::stoul(res, nullptr, 10));
-            aliasPidMap[alias] = pid;
-
-            SWSS_LOG_INFO("Read port channel %s pid %d", alias.c_str(), pid);
+            continue;
         }
 
-        {
-            std::stringstream cmd;
-            cmd << "kill -TERM " << pid;
-            EXEC_WITH_ERROR_THROW(cmd.str(), res);
+        SWSS_LOG_INFO("Send SIGTERM to port channel %s pid %d", alias.c_str(), pid);
 
-            SWSS_LOG_INFO("Sent SIGTERM to port channel %s pid %d", alias.c_str(), pid);
+        if (kill(pid, SIGTERM) < 0)
+        {
+            SWSS_LOG_ERROR("Failed to send SIGTERM to port channel %s pid %d", alias.c_str(), pid);
         }
     }
 
-    for (const auto& cit: aliasPidMap)
+    for (const auto& alias: m_lagList)
     {
-        const auto &alias = cit.first;
-        const auto &pid = cit.second;
+        pid_t pid;
 
-        std::stringstream cmd;
-        std::string res;
+        if (!getLagPid(pid, alias))
+        {
+            continue;
+        }
 
-        SWSS_LOG_NOTICE("Waiting for port channel %s to stop...", alias.c_str());
+        SWSS_LOG_NOTICE("Waiting for port channel %s pid %d to stop...", alias.c_str(), pid);
 
-        cmd << "tail -f --pid=" << pid << " /dev/null";
-        EXEC_WITH_ERROR_THROW(cmd.str(), res);
+        while (kill(pid, 0) >= 0)
+        {
+            nanosleep(&req, nullptr); // usleep is deprecated by POSIX.1-2008
+        }
     }
 
     SWSS_LOG_NOTICE("LAGs cleanup is done");
@@ -230,6 +228,7 @@ void TeamMgr::doLagTask(Consumer &consumer)
                 }
 
                 m_lagList.insert(alias);
+                addLagPid(alias);
             }
 
             setLagAdminStatus(alias, admin_status);
@@ -251,6 +250,7 @@ void TeamMgr::doLagTask(Consumer &consumer)
             {
                 removeLag(alias);
                 m_lagList.erase(alias);
+                removeLagPid(alias);
             }
         }
 
@@ -465,6 +465,124 @@ bool TeamMgr::setLagLearnMode(const string &alias, const string &learn_mode)
     m_appLagTable.set(alias, fvs);
 
     return true;
+}
+
+bool TeamMgr::readLagPid(pid_t &pid, const string &alias) const
+{
+    SWSS_LOG_ENTER();
+
+    stringstream pidFilePath;
+    pidFilePath << PID_DIR << alias << PID_EXT;
+
+    ifstream pidFile(pidFilePath.str());
+    if (!pidFile.is_open())
+    {
+        SWSS_LOG_ERROR(
+            "Failed to open port channel %s pid file %s",
+            alias.c_str(),
+            pidFilePath.str().c_str()
+        );
+        return false;
+    }
+
+    string line;
+    getline(pidFile, line);
+    if (line.empty())
+    {
+        SWSS_LOG_ERROR(
+            "Failed to read port channel %s pid: file %s is empty",
+            alias.c_str(),
+            pidFilePath.str().c_str()
+        );
+        pidFile.close();
+        return false;
+    }
+
+    pidFile.close();
+
+    try
+    {
+        pid = static_cast<pid_t>(stol(line, nullptr, 10));
+    }
+    catch (const exception &e)
+    {
+        SWSS_LOG_ERROR(
+            "Failed to parse port channel %s pid: %s",
+            alias.c_str(),
+            e.what()
+        );
+        return false;
+    }
+
+    return true;
+}
+
+bool TeamMgr::getLagPid(pid_t &pid, const string &alias) const
+{
+    SWSS_LOG_ENTER();
+
+    const auto &cit = m_lagPidMap.find(alias);
+    if (cit != m_lagPidMap.cend())
+    {
+        pid = cit->second;
+        return true;
+    }
+
+    SWSS_LOG_WARN("Unable to get port channel %s pid: fallback to read", alias.c_str());
+
+    pid_t p;
+    if (!readLagPid(p, alias))
+    {
+        return false;
+    }
+
+    if (p <= 1) // including init process
+    {
+        SWSS_LOG_ERROR("Failed to validate port channel %s pid %d", alias.c_str(), p);
+        return false;
+    }
+
+    pid = p;
+
+    return true;
+}
+
+void TeamMgr::addLagPid(const string &alias)
+{
+    SWSS_LOG_ENTER();
+
+    const auto &cit = m_lagPidMap.find(alias);
+    if (cit != m_lagPidMap.cend())
+    {
+        SWSS_LOG_ERROR("Failed to add port channel %s pid: object already exists", alias.c_str());
+        return;
+    }
+
+    pid_t pid;
+    if (readLagPid(pid, alias))
+    {
+        if (pid <= 1) // including init process
+        {
+            SWSS_LOG_ERROR("Failed to validate port channel %s pid %d", alias.c_str(), pid);
+            return;
+        }
+
+        m_lagPidMap[alias] = pid;
+    }
+}
+
+void TeamMgr::removeLagPid(const string &alias)
+{
+    SWSS_LOG_ENTER();
+
+    const auto &cit = m_lagPidMap.find(alias);
+    if (cit == m_lagPidMap.cend())
+    {
+        SWSS_LOG_ERROR("Failed to remove port channel %s pid: object doesn't exist", alias.c_str());
+        return;
+    }
+
+    m_lagPidMap.erase(cit);
 }
 
 task_process_status TeamMgr::addLag(const string &alias, int min_links, bool fallback)
