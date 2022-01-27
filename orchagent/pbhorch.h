@@ -8,6 +8,7 @@
 
 #include "pbh/pbhrule.h"
 #include "pbh/pbhmgr.h"
+#include "pbh/pbhcap.h"
 
 class PbhOrch final : public Orch
 {
@@ -34,6 +35,23 @@ private:
 
     template<typename T>
     bool pbhTaskExists(const T &obj) const;
+
+
+
+
+
+    template<typename T>
+    std::vector<std::string> getPbhAddedFields(const T &obj, const T &nObj) const;
+    template<typename T>
+    std::vector<std::string> getPbhUpdatedFields(const T &obj, const T &nObj) const;
+    template<typename T>
+    std::vector<std::string> getPbhRemovedFields(const T &obj, const T &nObj) const;
+
+
+
+
+
+
 
     bool createPbhTable(const PbhTable &table);
     bool updatePbhTable(const PbhTable &table);
@@ -75,4 +93,5 @@ private:
     PortsOrch *portsOrch;
 
     PbhHelper pbhHlpr;
+    PbhCapabilities pbhCap;
 };

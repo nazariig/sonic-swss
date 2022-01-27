@@ -64,6 +64,55 @@ static inline std::vector<K> uMapDiffByKey(const umap_t<K, V> &uMap1, const umap
     return v;
 }
 
+
+
+
+
+
+
+template<typename K, typename V>
+static inline std::vector<K> uMapDiffByKey1(const umap_t<K, V> &uMap1, const umap_t<K, V> &uMap2)
+{
+    std::vector<K> v;
+
+    const auto &s1 = uMapToKeySet(uMap1);
+    const auto &s2 = uMapToKeySet(uMap2);
+
+    std::set_difference(
+        s1.cbegin(),
+        s1.cend(),
+        s2.cbegin(),
+        s2.cend(),
+        std::back_inserter(v)
+    );
+
+    return v;
+}
+
+template<typename K, typename V>
+static inline std::vector<K> uMapIntersectByKey(const umap_t<K, V> &uMap1, const umap_t<K, V> &uMap2)
+{
+    std::vector<K> v;
+
+    const auto &s1 = uMapToKeySet(uMap1);
+    const auto &s2 = uMapToKeySet(uMap2);
+
+    std::set_intersection(
+        s1.cbegin(),
+        s1.cend(),
+        s2.cbegin(),
+        s2.cend(),
+        std::back_inserter(v)
+    );
+
+    return v;
+}
+
+
+
+
+
+
 // PBH OA -------------------------------------------------------------------------------------------------------------
 
 PbhOrch::PbhOrch(
@@ -163,6 +212,150 @@ template bool PbhOrch::pbhTaskExists(const PbhTable &obj) const;
 template bool PbhOrch::pbhTaskExists(const PbhRule &obj) const;
 template bool PbhOrch::pbhTaskExists(const PbhHash &obj) const;
 template bool PbhOrch::pbhTaskExists(const PbhHashField &obj) const;
+
+
+
+
+
+
+//template<>
+//std::vector<std::string> PbhOrch::getPbhAddedFields(const T &newObj oldObj, const T &newObj  obj2) const
+//{
+
+//}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//void PbhOrch::getPbhAddedFields() const
+//{
+
+//}
+
+//void PbhOrch::getPbhUpdatedFields() const
+//{
+
+//}
+
+//void PbhOrch::getPbhRemovedFields() const
+//{
+
+//}
+
+
+    //std::transform(
+    //    uMap.cbegin(),
+    //    uMap.cend(),
+    //    std::inserter(s, s.begin()),
+    //    [](const std::pair<K, V> &p) {
+    //        return p.first;
+    //    }
+    //);
+
+
+
+
+template<typename T>
+std::vector<std::string> PbhOrch::getPbhAddedFields(const T &obj1, const T &obj2) const
+{
+    //SWSS_LOG_ENTER();
+
+    //std::vector<std::string> v;
+
+    //const auto &dv = uMapDiffByKey1(obj1.fieldValueMap, obj2.fieldValueMap);
+
+    return uMapDiffByKey1(obj1.fieldValueMap, obj2.fieldValueMap);
+}
+
+template std::vector<std::string> PbhOrch::getPbhAddedFields(const PbhTable &obj1, const PbhTable &obj2) const;
+template std::vector<std::string> PbhOrch::getPbhAddedFields(const PbhRule &obj1, const PbhRule &obj2) const;
+template std::vector<std::string> PbhOrch::getPbhAddedFields(const PbhHash &obj1, const PbhHash &obj2) const;
+template std::vector<std::string> PbhOrch::getPbhAddedFields(const PbhHashField &obj1, const PbhHashField &obj2) const;
+
+template<typename T>
+std::vector<std::string> PbhOrch::getPbhUpdatedFields(const T &obj1, const T &obj2) const
+{
+    SWSS_LOG_ENTER();
+
+    std::vector<std::string> v;
+
+    const auto &iv = uMapIntersectByKey(obj1.fieldValueMap, obj2.fieldValueMap);
+
+    std::copy_if(
+        iv.cbegin(),
+        iv.cend(),
+        std::back_inserter(v),
+        [&obj1, &obj2](const auto &f) {
+            //SWSS_LOG_INFO("PBH rule(%s) field(%s) has been updated",
+            //    obj1.key.c_str(),
+            //    f.c_str(),
+            //    obj1
+            //);
+            return obj1.fieldValueMap.at(f) != obj2.fieldValueMap.at(f);
+        }
+    );
+
+    //std::for_each(
+    //    iv.cbegin(),
+    //    iv.cend(),
+    //    [&obj1, &obj2](const auto &k) {
+    //        if (obj1.fieldValueMap.at(k) != obj2.fieldValueMap.at(k))
+    //        {
+    //            v.push_back(k);
+    //        }
+    //    }
+    //);
+
+
+
+    //std::transform(
+    //    iv.cbegin(),
+    //    iv.cend(),
+    //    std::back_inserter(v),
+    //    [&obj1, &obj2](const auto &v) -> std::string {
+    //        if (obj1.fieldValueMap.at(v) != obj2.fieldValueMap.at(v))
+    //        {
+    //        }
+    //    }
+    //);
+
+    //for (const auto &it : fv)
+    //{
+    //    if ()
+    //    {
+    //        v.push_back();
+
+    //    }
+    //}
+    return v;
+}
+
+template std::vector<std::string> PbhOrch::getPbhUpdatedFields(const PbhTable &obj1, const PbhTable &obj2) const;
+template std::vector<std::string> PbhOrch::getPbhUpdatedFields(const PbhRule &obj1, const PbhRule &obj2) const;
+template std::vector<std::string> PbhOrch::getPbhUpdatedFields(const PbhHash &obj1, const PbhHash &obj2) const;
+template std::vector<std::string> PbhOrch::getPbhUpdatedFields(const PbhHashField &obj1, const PbhHashField &obj2) const;
+
+template<typename T>
+std::vector<std::string> PbhOrch::getPbhRemovedFields(const T &obj, const T &nObj) const
+{
+    return uMapDiffByKey1(obj.fieldValueMap, nObj.fieldValueMap);
+}
+
+template std::vector<std::string> PbhOrch::getPbhRemovedFields(const PbhTable &obj, const PbhTable &nObj) const;
+template std::vector<std::string> PbhOrch::getPbhRemovedFields(const PbhRule &obj, const PbhRule &nObj) const;
+template std::vector<std::string> PbhOrch::getPbhRemovedFields(const PbhHash &obj, const PbhHash &nObj) const;
+template std::vector<std::string> PbhOrch::getPbhRemovedFields(const PbhHashField &obj, const PbhHashField &nObj) const;
 
 // PBH table ----------------------------------------------------------------------------------------------------------
 
@@ -577,13 +770,49 @@ bool PbhOrch::updatePbhRule(const PbhRule &rule)
         return false;
     }
 
-    if (!uMapDiffByKey(rObj.fieldValueMap, rule.fieldValueMap).empty())
+    //if (!uMapDiffByKey(rObj.fieldValueMap, rule.fieldValueMap).empty())
+    //{
+    //    SWSS_LOG_ERROR("Failed to update PBH rule(%s) in SAI: fields add/remove is prohibited", rule.key.c_str());
+    //    return false;
+    //}
+
+
+    const auto &uFields = this->getPbhUpdatedFields(rule, rObj);
+
+
+
+    if (uFields.empty())
     {
-        SWSS_LOG_ERROR("Failed to update PBH rule(%s) in SAI: fields add/remove is prohibited", rule.key.c_str());
+        SWSS_LOG_NOTICE("PBH rule(%s) in SAI is up-to-date", rule.key.c_str());
+        return true;
+    }
+
+    for (const auto &it : uFields)
+    {
+        SWSS_LOG_NOTICE("=> PBH rule(%s) field(%s) has been updated", rule.key.c_str(), it.c_str());
+    }
+
+    if (!this->pbhHlpr.updatePbhRule(rule))
+    {
+        SWSS_LOG_ERROR("Failed to update PBH rule(%s) in internal cache", rule.key.c_str());
         return false;
     }
 
-    bool flowCounterUpdate = false;
+    SWSS_LOG_NOTICE("Updated PBH rule(%s) in SAI", rule.key.c_str());
+
+    return true;
+
+
+
+
+
+
+    //bool updateAclRule(shared_ptr<AclRule> updatedAclRule);
+
+
+
+
+    /*bool flowCounterUpdate = false;
 
     for (const auto &oCit : rObj.fieldValueMap)
     {
@@ -630,7 +859,7 @@ bool PbhOrch::updatePbhRule(const PbhRule &rule)
 
     SWSS_LOG_NOTICE("Updated PBH rule(%s) in SAI", rule.key.c_str());
 
-    return true;
+    return true;*/
 }
 
 bool PbhOrch::removePbhRule(const PbhRule &rule)
