@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <sstream>
 #include <string>
+#include <vector>
 #include <map>
 #include <set>
 
@@ -114,7 +115,10 @@ PbhGenericFieldCapabilities::PbhGenericFieldCapabilities() noexcept
     this->table.description.insert(PbhFieldCapability::UPDATE);
 
     this->rule.priority.insert(PbhFieldCapability::UPDATE);
-    this->setPbhDefaults(this->rule.gre_key);
+    //this->setPbhDefaults(this->rule.gre_key);
+    
+    this->rule.gre_key.insert(PbhFieldCapability::ADD);
+
     this->setPbhDefaults(this->rule.ether_type);
     this->setPbhDefaults(this->rule.ip_protocol);
     this->setPbhDefaults(this->rule.ipv6_next_header);
@@ -455,12 +459,241 @@ void PbhCapabilities::writePbhVendorCapabilitiesToDb()
     SWSS_LOG_NOTICE("Wrote PBH capabilities to State DB: %s table", STATE_PBH_CAPABILITIES_TABLE_NAME);
 }
 
+bool PbhCapabilities::validatePbhTableCap(const std::vector<std::string> &fieldList, PbhFieldCapability value) const
+{
+    SWSS_LOG_ENTER();
 
+    for (const auto &cit : fieldList)
+    {
+        if (cit == PBH_TABLE_INTERFACE_LIST)
+        {
+            if (!this->table->validatePbhInterfaceList(value))
+            {
+                SWSS_LOG_ERROR("Failed to validate field(%s): capability(%s) is not supported",
+                    cit.c_str(),
+                    toStr(value).c_str()
+                );
+                return false;
+            }
+        }
+        else if (cit == PBH_TABLE_DESCRIPTION)
+        {
+            if (!this->table->validatePbhDescription(value))
+            {
+                SWSS_LOG_ERROR("Failed to validate field(%s): capability(%s) is not supported",
+                    cit.c_str(),
+                    toStr(value).c_str()
+                );
+                return false;
+            }
+        }
+        else
+        {
+            SWSS_LOG_WARN("Unknown field(%s): skipping ...", cit.c_str());
+        }
+    }
 
+    return true;
+}
 
+bool PbhCapabilities::validatePbhRuleCap(const std::vector<std::string> &fieldList, PbhFieldCapability value) const
+{
+    SWSS_LOG_ENTER();
 
+    for (const auto &cit : fieldList)
+    {
+        if (cit == PBH_RULE_PRIORITY)
+        {
+            if (!this->rule->validatePbhPriority(value))
+            {
+                SWSS_LOG_ERROR("Failed to validate field(%s): capability(%s) is not supported",
+                    cit.c_str(),
+                    toStr(value).c_str()
+                );
+                return false;
+            }
+        }
+        else if (cit == PBH_RULE_GRE_KEY)
+        {
+            if (!this->rule->validatePbhGreKey(value))
+            {
+                SWSS_LOG_ERROR("Failed to validate field(%s): capability(%s) is not supported",
+                    cit.c_str(),
+                    toStr(value).c_str()
+                );
+                return false;
+            }
+        }
+        else if (cit == PBH_RULE_ETHER_TYPE)
+        {
+            if (!this->rule->validatePbhEtherType(value))
+            {
+                SWSS_LOG_ERROR("Failed to validate field(%s): capability(%s) is not supported",
+                    cit.c_str(),
+                    toStr(value).c_str()
+                );
+                return false;
+            }
+        }
+        else if (cit == PBH_RULE_IP_PROTOCOL)
+        {
+            if (!this->rule->validatePbhIpProtocol(value))
+            {
+                SWSS_LOG_ERROR("Failed to validate field(%s): capability(%s) is not supported",
+                    cit.c_str(),
+                    toStr(value).c_str()
+                );
+                return false;
+            }
+        }
+        else if (cit == PBH_RULE_IPV6_NEXT_HEADER)
+        {
+            if (!this->rule->validatePbhIpv6NextHeader(value))
+            {
+                SWSS_LOG_ERROR("Failed to validate field(%s): capability(%s) is not supported",
+                    cit.c_str(),
+                    toStr(value).c_str()
+                );
+                return false;
+            }
+        }
+        else if (cit == PBH_RULE_L4_DST_PORT)
+        {
+            if (!this->rule->validatePbhL4DstPort(value))
+            {
+                SWSS_LOG_ERROR("Failed to validate field(%s): capability(%s) is not supported",
+                    cit.c_str(),
+                    toStr(value).c_str()
+                );
+                return false;
+            }
+        }
+        else if (cit == PBH_RULE_INNER_ETHER_TYPE)
+        {
+            if (!this->rule->validatePbhInnerEtherType(value))
+            {
+                SWSS_LOG_ERROR("Failed to validate field(%s): capability(%s) is not supported",
+                    cit.c_str(),
+                    toStr(value).c_str()
+                );
+                return false;
+            }
+        }
+        else if (cit == PBH_RULE_HASH)
+        {
+            if (!this->rule->validatePbhHash(value))
+            {
+                SWSS_LOG_ERROR("Failed to validate field(%s): capability(%s) is not supported",
+                    cit.c_str(),
+                    toStr(value).c_str()
+                );
+                return false;
+            }
+        }
+        else if (cit == PBH_RULE_PACKET_ACTION)
+        {
+            if (!this->rule->validatePbhPacketAction(value))
+            {
+                SWSS_LOG_ERROR("Failed to validate field(%s): capability(%s) is not supported",
+                    cit.c_str(),
+                    toStr(value).c_str()
+                );
+                return false;
+            }
+        }
+        else if (cit == PBH_RULE_FLOW_COUNTER)
+        {
+            if (!this->rule->validatePbhFlowCounter(value))
+            {
+                SWSS_LOG_ERROR("Failed to validate field(%s): capability(%s) is not supported",
+                    cit.c_str(),
+                    toStr(value).c_str()
+                );
+                return false;
+            }
+        }
+        else
+        {
+            SWSS_LOG_WARN("Unknown field(%s): skipping ...", cit.c_str());
+        }
+    }
 
+    return true;
+}
 
+bool PbhCapabilities::validatePbhHashCap(const std::vector<std::string> &fieldList, PbhFieldCapability value) const
+{
+    SWSS_LOG_ENTER();
+
+    for (const auto &cit : fieldList)
+    {
+        if (cit == PBH_HASH_HASH_FIELD_LIST)
+        {
+            if (!this->hash->validatePbhHashFieldList(value))
+            {
+                SWSS_LOG_ERROR("Failed to validate field(%s): capability(%s) is not supported",
+                    cit.c_str(),
+                    toStr(value).c_str()
+                );
+                return false;
+            }
+        }
+        else
+        {
+            SWSS_LOG_WARN("Unknown field(%s): skipping ...", cit.c_str());
+        }
+    }
+
+    return true;
+}
+
+bool PbhCapabilities::validatePbhHashFieldCap(const std::vector<std::string> &fieldList, PbhFieldCapability value) const
+{
+    SWSS_LOG_ENTER();
+
+    for (const auto &cit : fieldList)
+    {
+        if (cit == PBH_HASH_FIELD_HASH_FIELD)
+        {
+            if (!this->hashField->validatePbhHashField(value))
+            {
+                SWSS_LOG_ERROR("Failed to validate field(%s): capability(%s) is not supported",
+                    cit.c_str(),
+                    toStr(value).c_str()
+                );
+                return false;
+            }
+        }
+        else if (cit == PBH_HASH_FIELD_IP_MASK)
+        {
+            if (!this->hashField->validatePbhIpMask(value))
+            {
+                SWSS_LOG_ERROR("Failed to validate field(%s): capability(%s) is not supported",
+                    cit.c_str(),
+                    toStr(value).c_str()
+                );
+                return false;
+            }
+        }
+        else if (cit == PBH_HASH_FIELD_SEQUENCE_ID)
+        {
+            if (!this->hashField->validatePbhSequenceId(value))
+            {
+                SWSS_LOG_ERROR("Failed to validate field(%s): capability(%s) is not supported",
+                    cit.c_str(),
+                    toStr(value).c_str()
+                );
+                return false;
+            }
+        }
+        else
+        {
+            SWSS_LOG_WARN("Unknown field(%s): skipping ...", cit.c_str());
+        }
+    }
+
+    return true;
+}
 
 
 

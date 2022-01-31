@@ -45,7 +45,7 @@ static inline std::set<K> uMapToKeySet(const umap_t<K, V> &uMap)
     return s;
 }
 
-template<typename K, typename V>
+/*template<typename K, typename V>
 static inline std::vector<K> uMapDiffByKey(const umap_t<K, V> &uMap1, const umap_t<K, V> &uMap2)
 {
     std::vector<K> v;
@@ -62,16 +62,10 @@ static inline std::vector<K> uMapDiffByKey(const umap_t<K, V> &uMap1, const umap
     );
 
     return v;
-}
-
-
-
-
-
-
+}*/
 
 template<typename K, typename V>
-static inline std::vector<K> uMapDiffByKey1(const umap_t<K, V> &uMap1, const umap_t<K, V> &uMap2)
+static inline std::vector<K> uMapDiffByKey(const umap_t<K, V> &uMap1, const umap_t<K, V> &uMap2)
 {
     std::vector<K> v;
 
@@ -107,11 +101,6 @@ static inline std::vector<K> uMapIntersectByKey(const umap_t<K, V> &uMap1, const
 
     return v;
 }
-
-
-
-
-
 
 // PBH OA -------------------------------------------------------------------------------------------------------------
 
@@ -267,7 +256,7 @@ template bool PbhOrch::pbhTaskExists(const PbhHashField &obj) const;
 
 
 template<typename T>
-std::vector<std::string> PbhOrch::getPbhAddedFields(const T &obj1, const T &obj2) const
+std::vector<std::string> PbhOrch::getPbhAddedFields(const T &obj, const T &nObj) const
 {
     //SWSS_LOG_ENTER();
 
@@ -275,34 +264,34 @@ std::vector<std::string> PbhOrch::getPbhAddedFields(const T &obj1, const T &obj2
 
     //const auto &dv = uMapDiffByKey1(obj1.fieldValueMap, obj2.fieldValueMap);
 
-    return uMapDiffByKey1(obj1.fieldValueMap, obj2.fieldValueMap);
+    return uMapDiffByKey(nObj.fieldValueMap, obj.fieldValueMap);
 }
 
-template std::vector<std::string> PbhOrch::getPbhAddedFields(const PbhTable &obj1, const PbhTable &obj2) const;
-template std::vector<std::string> PbhOrch::getPbhAddedFields(const PbhRule &obj1, const PbhRule &obj2) const;
-template std::vector<std::string> PbhOrch::getPbhAddedFields(const PbhHash &obj1, const PbhHash &obj2) const;
-template std::vector<std::string> PbhOrch::getPbhAddedFields(const PbhHashField &obj1, const PbhHashField &obj2) const;
+template std::vector<std::string> PbhOrch::getPbhAddedFields(const PbhTable &obj, const PbhTable &nObj) const;
+template std::vector<std::string> PbhOrch::getPbhAddedFields(const PbhRule &obj, const PbhRule &nObj) const;
+template std::vector<std::string> PbhOrch::getPbhAddedFields(const PbhHash &obj, const PbhHash &nObj) const;
+template std::vector<std::string> PbhOrch::getPbhAddedFields(const PbhHashField &obj, const PbhHashField &nObj) const;
 
 template<typename T>
-std::vector<std::string> PbhOrch::getPbhUpdatedFields(const T &obj1, const T &obj2) const
+std::vector<std::string> PbhOrch::getPbhUpdatedFields(const T &obj, const T &nObj) const
 {
-    SWSS_LOG_ENTER();
+    //SWSS_LOG_ENTER();
 
     std::vector<std::string> v;
 
-    const auto &iv = uMapIntersectByKey(obj1.fieldValueMap, obj2.fieldValueMap);
+    const auto &iv = uMapIntersectByKey(obj.fieldValueMap, nObj.fieldValueMap);
 
     std::copy_if(
         iv.cbegin(),
         iv.cend(),
         std::back_inserter(v),
-        [&obj1, &obj2](const auto &f) {
+        [&obj, &nObj](const auto &f) {
             //SWSS_LOG_INFO("PBH rule(%s) field(%s) has been updated",
             //    obj1.key.c_str(),
             //    f.c_str(),
             //    obj1
             //);
-            return obj1.fieldValueMap.at(f) != obj2.fieldValueMap.at(f);
+            return obj.fieldValueMap.at(f) != nObj.fieldValueMap.at(f);
         }
     );
 
@@ -341,15 +330,15 @@ std::vector<std::string> PbhOrch::getPbhUpdatedFields(const T &obj1, const T &ob
     return v;
 }
 
-template std::vector<std::string> PbhOrch::getPbhUpdatedFields(const PbhTable &obj1, const PbhTable &obj2) const;
-template std::vector<std::string> PbhOrch::getPbhUpdatedFields(const PbhRule &obj1, const PbhRule &obj2) const;
-template std::vector<std::string> PbhOrch::getPbhUpdatedFields(const PbhHash &obj1, const PbhHash &obj2) const;
-template std::vector<std::string> PbhOrch::getPbhUpdatedFields(const PbhHashField &obj1, const PbhHashField &obj2) const;
+template std::vector<std::string> PbhOrch::getPbhUpdatedFields(const PbhTable &obj, const PbhTable &nObj) const;
+template std::vector<std::string> PbhOrch::getPbhUpdatedFields(const PbhRule &obj, const PbhRule &nObj) const;
+template std::vector<std::string> PbhOrch::getPbhUpdatedFields(const PbhHash &obj, const PbhHash &nObj) const;
+template std::vector<std::string> PbhOrch::getPbhUpdatedFields(const PbhHashField &obj, const PbhHashField &nObj) const;
 
 template<typename T>
 std::vector<std::string> PbhOrch::getPbhRemovedFields(const T &obj, const T &nObj) const
 {
-    return uMapDiffByKey1(obj.fieldValueMap, nObj.fieldValueMap);
+    return uMapDiffByKey(obj.fieldValueMap, nObj.fieldValueMap);
 }
 
 template std::vector<std::string> PbhOrch::getPbhRemovedFields(const PbhTable &obj, const PbhTable &nObj) const;
@@ -442,6 +431,34 @@ bool PbhOrch::updatePbhTable(const PbhTable &table)
     if (!this->pbhHlpr.getPbhTable(tObj, table.key))
     {
         SWSS_LOG_ERROR("Failed to update PBH table(%s) in SAI: object doesn't exist", table.key.c_str());
+        return false;
+    }
+
+    const auto &aFields = this->getPbhAddedFields(tObj, table);
+    const auto &uFields = this->getPbhUpdatedFields(tObj, table);
+    const auto &rFields = this->getPbhRemovedFields(tObj, table);
+
+    if (aFields.empty() && uFields.empty() && rFields.empty())
+    {
+        SWSS_LOG_NOTICE("PBH table(%s) in SAI is up-to-date", table.key.c_str());
+        return true;
+    }
+
+    if (!this->pbhCap.validatePbhTableCap(aFields, PbhFieldCapability::ADD))
+    {
+        SWSS_LOG_ERROR("Failed to validate PBH table(%s) added fields: unsupported capabilities", table.key.c_str());
+        return false;
+    }
+
+    if (!this->pbhCap.validatePbhTableCap(uFields, PbhFieldCapability::UPDATE))
+    {
+        SWSS_LOG_ERROR("Failed to validate PBH table(%s) updated fields: unsupported capabilities", table.key.c_str());
+        return false;
+    }
+
+    if (!this->pbhCap.validatePbhTableCap(rFields, PbhFieldCapability::REMOVE))
+    {
+        SWSS_LOG_ERROR("Failed to validate PBH table(%s) removed fields: unsupported capabilities", table.key.c_str());
         return false;
     }
 
@@ -776,21 +793,265 @@ bool PbhOrch::updatePbhRule(const PbhRule &rule)
     //    return false;
     //}
 
+    const auto &aFields = this->getPbhAddedFields(rObj, rule);
+    const auto &uFields = this->getPbhUpdatedFields(rObj, rule);
+    const auto &rFields = this->getPbhRemovedFields(rObj, rule);
 
-    const auto &uFields = this->getPbhUpdatedFields(rule, rObj);
-
-
-
-    if (uFields.empty())
+    // DEBUG ==========================================================================================================
+    for (const auto &it : aFields)
     {
-        SWSS_LOG_NOTICE("PBH rule(%s) in SAI is up-to-date", rule.key.c_str());
-        return true;
+        SWSS_LOG_NOTICE("=> PBH rule(%s) field(%s) has been added", rule.key.c_str(), it.c_str());
     }
 
     for (const auto &it : uFields)
     {
         SWSS_LOG_NOTICE("=> PBH rule(%s) field(%s) has been updated", rule.key.c_str(), it.c_str());
     }
+
+    for (const auto &it : rFields)
+    {
+        SWSS_LOG_NOTICE("=> PBH rule(%s) field(%s) has been removed", rule.key.c_str(), it.c_str());
+    }
+    // DEBUG ==========================================================================================================
+
+    if (aFields.empty() && uFields.empty() && rFields.empty())
+    {
+        SWSS_LOG_NOTICE("PBH rule(%s) in SAI is up-to-date", rule.key.c_str());
+        return true;
+    }
+
+    if (!this->pbhCap.validatePbhRuleCap(aFields, PbhFieldCapability::ADD))
+    {
+        SWSS_LOG_ERROR("Failed to validate PBH rule(%s) added fields: unsupported capabilities", rule.key.c_str());
+        return false;
+    }
+
+    if (!this->pbhCap.validatePbhRuleCap(uFields, PbhFieldCapability::UPDATE))
+    {
+        SWSS_LOG_ERROR("Failed to validate PBH rule(%s) updated fields: unsupported capabilities", rule.key.c_str());
+        return false;
+    }
+
+    if (!this->pbhCap.validatePbhRuleCap(rFields, PbhFieldCapability::REMOVE))
+    {
+        SWSS_LOG_ERROR("Failed to validate PBH rule(%s) removed fields: unsupported capabilities", rule.key.c_str());
+        return false;
+    }
+
+    std::shared_ptr<AclRulePbh> pbhRule;
+
+    if (rule.flow_counter.is_set)
+    {
+        pbhRule = std::make_shared<AclRulePbh>(this->aclOrch, rule.name, rule.table, rule.flow_counter.value);
+    }
+    else
+    {
+        pbhRule = std::make_shared<AclRulePbh>(this->aclOrch, rule.name, rule.table);
+    }
+
+    if (rule.priority.is_set)
+    {
+        if (!pbhRule->validateAddPriority(rule.priority.value))
+        {
+            SWSS_LOG_ERROR("Failed to configure PBH rule(%s) priority", rule.key.c_str());
+            return false;
+        }
+    }
+
+    if (rule.gre_key.is_set)
+    {
+        sai_attribute_t attr;
+
+        attr.id = SAI_ACL_ENTRY_ATTR_FIELD_GRE_KEY;
+        attr.value.aclfield.enable = true;
+        attr.value.aclfield.data.u32 = rule.gre_key.value;
+        attr.value.aclfield.mask.u32 = rule.gre_key.mask;
+
+        if (!pbhRule->validateAddMatch(attr))
+        {
+            SWSS_LOG_ERROR("Failed to configure PBH rule(%s) match: GRE_KEY", rule.key.c_str());
+            return false;
+        }
+    }
+
+    if (rule.ether_type.is_set)
+    {
+        sai_attribute_t attr;
+
+        attr.id = SAI_ACL_ENTRY_ATTR_FIELD_ETHER_TYPE;
+        attr.value.aclfield.enable = true;
+        attr.value.aclfield.data.u16 = rule.ether_type.value;
+        attr.value.aclfield.mask.u16 = rule.ether_type.mask;
+
+        if (!pbhRule->validateAddMatch(attr))
+        {
+            SWSS_LOG_ERROR("Failed to configure PBH rule(%s) match: ETHER_TYPE", rule.key.c_str());
+            return false;
+        }
+    }
+
+    if (rule.ip_protocol.is_set)
+    {
+        sai_attribute_t attr;
+
+        attr.id = SAI_ACL_ENTRY_ATTR_FIELD_IP_PROTOCOL;
+        attr.value.aclfield.enable = true;
+        attr.value.aclfield.data.u8 = rule.ip_protocol.value;
+        attr.value.aclfield.mask.u8 = rule.ip_protocol.mask;
+
+        if (!pbhRule->validateAddMatch(attr))
+        {
+            SWSS_LOG_ERROR("Failed to configure PBH rule(%s) match: IP_PROTOCOL", rule.key.c_str());
+            return false;
+        }
+    }
+
+    if (rule.ipv6_next_header.is_set)
+    {
+        sai_attribute_t attr;
+
+        attr.id = SAI_ACL_ENTRY_ATTR_FIELD_IPV6_NEXT_HEADER;
+        attr.value.aclfield.enable = true;
+        attr.value.aclfield.data.u8 = rule.ipv6_next_header.value;
+        attr.value.aclfield.mask.u8 = rule.ipv6_next_header.mask;
+
+        if (!pbhRule->validateAddMatch(attr))
+        {
+            SWSS_LOG_ERROR("Failed to configure PBH rule(%s) match: IPV6_NEXT_HEADER", rule.key.c_str());
+            return false;
+        }
+    }
+
+    if (rule.l4_dst_port.is_set)
+    {
+        sai_attribute_t attr;
+
+        attr.id = SAI_ACL_ENTRY_ATTR_FIELD_L4_DST_PORT;
+        attr.value.aclfield.enable = true;
+        attr.value.aclfield.data.u16 = rule.l4_dst_port.value;
+        attr.value.aclfield.mask.u16 = rule.l4_dst_port.mask;
+
+        if (!pbhRule->validateAddMatch(attr))
+        {
+            SWSS_LOG_ERROR("Failed to configure PBH rule(%s) match: L4_DST_PORT", rule.key.c_str());
+            return false;
+        }
+    }
+
+    if (rule.inner_ether_type.is_set)
+    {
+        sai_attribute_t attr;
+
+        attr.id = SAI_ACL_ENTRY_ATTR_FIELD_INNER_ETHER_TYPE;
+        attr.value.aclfield.enable = true;
+        attr.value.aclfield.data.u16 = rule.inner_ether_type.value;
+        attr.value.aclfield.mask.u16 = rule.inner_ether_type.mask;
+
+        if (!pbhRule->validateAddMatch(attr))
+        {
+            SWSS_LOG_ERROR("Failed to configure PBH rule(%s) match: INNER_ETHER_TYPE", rule.key.c_str());
+            return false;
+        }
+    }
+
+    if (rule.hash.is_set && rule.packet_action.is_set)
+    {
+        PbhHash hObj;
+
+        if (this->pbhHlpr.getPbhHash(hObj, rule.hash.value))
+        {
+            sai_attribute_t attr;
+
+            attr.id = rule.packet_action.value;
+            attr.value.aclaction.enable = true;
+            attr.value.aclaction.parameter.oid = hObj.getOid();
+
+            if (!pbhRule->validateAddAction(attr))
+            {
+                SWSS_LOG_ERROR("Failed to configure PBH rule(%s) action", rule.key.c_str());
+                return false;
+            }
+        }
+    }
+
+    if (!pbhRule->validate())
+    {
+        SWSS_LOG_ERROR("Failed to validate PBH rule(%s)", rule.key.c_str());
+        return false;
+    }
+
+    if (!this->aclOrch->updateAclRule(pbhRule))
+    {
+        SWSS_LOG_ERROR("Failed to update PBH rule(%s) in SAI", rule.key.c_str());
+        return false;
+    }
+
+    if (!this->pbhHlpr.updatePbhRule(rule))
+    {
+        SWSS_LOG_ERROR("Failed to update PBH rule(%s) in internal cache", rule.key.c_str());
+        return false;
+    }
+
+    SWSS_LOG_NOTICE("Updated PBH rule(%s) in SAI", rule.key.c_str());
+
+    return true;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    //std::shared_ptr<AclRulePbh> pbhRule;
+    // UPDATE FLOW
+
+
+
+
+
+
+
+    //if (uFields.empty())
+    //{
+    //    SWSS_LOG_NOTICE("PBH rule(%s) in SAI is up-to-date", rule.key.c_str());
+    //    return true;
+    //}
+
+    //for (const auto &it : uFields)
+    //{
+    //    SWSS_LOG_NOTICE("=> PBH rule(%s) field(%s) has been updated", rule.key.c_str(), it.c_str());
+    //}
 
     if (!this->pbhHlpr.updatePbhRule(rule))
     {
@@ -1061,31 +1322,86 @@ bool PbhOrch::updatePbhHash(const PbhHash &hash)
         return false;
     }
 
-    if (!uMapDiffByKey(hObj.fieldValueMap, hash.fieldValueMap).empty())
+    const auto &aFields = this->getPbhAddedFields(hObj, hash);
+    const auto &uFields = this->getPbhUpdatedFields(hObj, hash);
+    const auto &rFields = this->getPbhRemovedFields(hObj, hash);
+
+    if (aFields.empty() && uFields.empty() && rFields.empty())
     {
-        SWSS_LOG_ERROR("Failed to update PBH hash(%s) in SAI: fields add/remove is prohibited", hash.key.c_str());
+        SWSS_LOG_NOTICE("PBH hash(%s) in SAI is up-to-date", hash.key.c_str());
+        return true;
+    }
+
+    if (!this->pbhCap.validatePbhHashCap(aFields, PbhFieldCapability::ADD))
+    {
+        SWSS_LOG_ERROR("Failed to validate PBH hash(%s) added fields: unsupported capabilities", hash.key.c_str());
         return false;
     }
 
-    for (const auto &oCit : hObj.fieldValueMap)
+    if (!this->pbhCap.validatePbhHashCap(uFields, PbhFieldCapability::UPDATE))
     {
-        const auto &field = oCit.first;
+        SWSS_LOG_ERROR("Failed to validate PBH hash(%s) updated fields: unsupported capabilities", hash.key.c_str());
+        return false;
+    }
 
-        const auto &oValue = oCit.second;
-        const auto &nValue = hash.fieldValueMap.at(field);
+    if (!this->pbhCap.validatePbhHashCap(rFields, PbhFieldCapability::REMOVE))
+    {
+        SWSS_LOG_ERROR("Failed to validate PBH hash(%s) removed fields: unsupported capabilities", hash.key.c_str());
+        return false;
+    }
 
-        if (oValue != nValue)
+    std::vector<sai_object_id_t> hashFieldOidList;
+
+    if (hash.hash_field_list.is_set)
+    {
+        for (const auto &cit : hash.hash_field_list.value)
         {
-            SWSS_LOG_ERROR(
-                "Failed to update PBH hash(%s) in SAI: field(%s) update is prohibited",
-                hash.key.c_str(),
-                field.c_str()
-            );
-            return false;
+            PbhHashField hfObj;
+
+            if (!this->pbhHlpr.getPbhHashField(hfObj, cit))
+            {
+                SWSS_LOG_ERROR(
+                    "Failed to update PBH hash(%s) in SAI: missing hash field(%s)",
+                    hash.key.c_str(),
+                    cit.c_str()
+                );
+                return false;
+            }
+
+            hashFieldOidList.push_back(hfObj.getOid());
         }
     }
 
-    SWSS_LOG_NOTICE("PBH hash(%s) in SAI is up-to-date", hash.key.c_str());
+    if (hashFieldOidList.empty())
+    {
+        SWSS_LOG_ERROR("Failed to update PBH hash(%s) in SAI: missing hash fields", hash.key.c_str());
+        return false;
+    }
+
+    sai_attribute_t attr;
+
+    attr.id = SAI_HASH_ATTR_FINE_GRAINED_HASH_FIELD_LIST;
+    attr.value.objlist.count = static_cast<sai_uint32_t>(hashFieldOidList.size());
+    attr.value.objlist.list = hashFieldOidList.data();
+
+    sai_status_t status;
+
+    status = sai_hash_api->set_hash_attribute(hObj.getOid(), &attr);
+    if (status != SAI_STATUS_SUCCESS)
+    {
+        SWSS_LOG_ERROR("Failed to update PBH hash(%s) in SAI", hash.key.c_str());
+        return false;
+    }
+
+    hObj.hash_field_list = hash.hash_field_list;
+
+    if (!this->pbhHlpr.updatePbhHash(hObj))
+    {
+        SWSS_LOG_ERROR("Failed to update PBH hash(%s) in internal cache", hObj.key.c_str());
+        return false;
+    }
+
+    SWSS_LOG_NOTICE("Updated PBH hash(%s) in SAI", hObj.key.c_str());
 
     return true;
 }
@@ -1301,33 +1617,37 @@ bool PbhOrch::updatePbhHashField(const PbhHashField &hashField)
         return false;
     }
 
-    if (!uMapDiffByKey(hfObj.fieldValueMap, hashField.fieldValueMap).empty())
+    const auto &aFields = this->getPbhAddedFields(hfObj, hashField);
+    const auto &uFields = this->getPbhUpdatedFields(hfObj, hashField);
+    const auto &rFields = this->getPbhRemovedFields(hfObj, hashField);
+
+    if (aFields.empty() && uFields.empty() && rFields.empty())
     {
-        SWSS_LOG_ERROR("Failed to update PBH hash field(%s) in SAI: fields add/remove is prohibited", hashField.key.c_str());
+        SWSS_LOG_NOTICE("PBH hash field(%s) in SAI is up-to-date", hashField.key.c_str());
+        return true;
+    }
+
+    if (!this->pbhCap.validatePbhHashFieldCap(aFields, PbhFieldCapability::ADD))
+    {
+        SWSS_LOG_ERROR("Failed to validate PBH hash field(%s) added fields: unsupported capabilities", hashField.key.c_str());
         return false;
     }
 
-    for (const auto &oCit : hfObj.fieldValueMap)
+    if (!this->pbhCap.validatePbhHashFieldCap(uFields, PbhFieldCapability::UPDATE))
     {
-        const auto &field = oCit.first;
-
-        const auto &oValue = oCit.second;
-        const auto &nValue = hashField.fieldValueMap.at(field);
-
-        if (oValue != nValue)
-        {
-            SWSS_LOG_ERROR(
-                "Failed to update PBH hash field(%s) in SAI: field(%s) update is prohibited",
-                hashField.key.c_str(),
-                field.c_str()
-            );
-            return false;
-        }
+        SWSS_LOG_ERROR("Failed to validate PBH hash field(%s) updated fields: unsupported capabilities", hashField.key.c_str());
+        return false;
     }
 
-    SWSS_LOG_NOTICE("PBH hash field(%s) in SAI is up-to-date", hashField.key.c_str());
+    if (!this->pbhCap.validatePbhHashFieldCap(rFields, PbhFieldCapability::REMOVE))
+    {
+        SWSS_LOG_ERROR("Failed to validate PBH hash field(%s) removed fields: unsupported capabilities", hashField.key.c_str());
+        return false;
+    }
 
-    return true;
+    SWSS_LOG_ERROR("Failed to update PBH hash field(%s) in SAI: update is prohibited", hfObj.key.c_str());
+
+    return false;
 }
 
 bool PbhOrch::removePbhHashField(const PbhHashField &hashField)

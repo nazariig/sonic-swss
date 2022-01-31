@@ -711,7 +711,7 @@ bool PbhHelper::parsePbhRuleFlowCounter(PbhRule &rule, const std::string &field,
         return false;
     }
 
-    rule.flow_counter.meta.name = field;
+    //rule.flow_counter.meta.name = field;
     rule.flow_counter.value = cit->second;
     rule.flow_counter.is_set = true;
 
@@ -1014,7 +1014,7 @@ bool PbhHelper::validatePbhRule(PbhRule &rule) const
             PBH_RULE_FLOW_COUNTER,
             PBH_RULE_FLOW_COUNTER_DISABLED
         );
-        rule.flow_counter.meta.name = PBH_RULE_FLOW_COUNTER;
+        //rule.flow_counter.meta.name = PBH_RULE_FLOW_COUNTER;
         rule.flow_counter.value = false;
         rule.flow_counter.is_set = true;
 

@@ -2,6 +2,8 @@
 
 #include <cstdint>
 #include <memory>
+#include <string>
+#include <vector>
 #include <set>
 
 #include "dbconnector.h"
@@ -157,21 +159,12 @@ public:
     PbhCapabilities() noexcept;
     ~PbhCapabilities() = default;
 
+    bool validatePbhTableCap(const std::vector<std::string> &fieldList, PbhFieldCapability value) const;
+    bool validatePbhRuleCap(const std::vector<std::string> &fieldList, PbhFieldCapability value) const;
+    bool validatePbhHashCap(const std::vector<std::string> &fieldList, PbhFieldCapability value) const;
+    bool validatePbhHashFieldCap(const std::vector<std::string> &fieldList, PbhFieldCapability value) const;
+
     PbhAsicVendor getAsicVendor() const noexcept;
-
-
-
-
-
-
-
-//public:
-//    bool validate       PbhTableCapabilities                            Pbh     TableCap(std::   PbhFieldCapability value);
-//    bool validate       PbhRuleCapabilities                            Pbh     TableCap(std::   PbhFieldCapability value);
-//    bool validate       PbhHashCapabilities                            Pbh     TableCap(std::   PbhFieldCapability value);
-//    bool validate       PbhHashFieldCapabilities                            Pbh     TableCap(std::   PbhFieldCapability value);
-
-
 
 private:
     template<typename T>

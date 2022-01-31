@@ -115,9 +115,6 @@ public:
     } packet_action;
 
     struct {
-        struct {
-            std::string name;
-        } meta;
         bool value;
         bool is_set = false;
     } flow_counter;
