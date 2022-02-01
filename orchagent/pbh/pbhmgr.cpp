@@ -677,6 +677,7 @@ bool PbhHelper::parsePbhRuleHash(PbhRule &rule, const std::string &field, const 
         return false;
     }
 
+    rule.hash.meta.name = field;
     rule.hash.value = value;
     rule.hash.is_set = true;
 
@@ -694,6 +695,7 @@ bool PbhHelper::parsePbhRulePacketAction(PbhRule &rule, const std::string &field
         return false;
     }
 
+    rule.packet_action.meta.name = field;
     rule.packet_action.value = cit->second;
     rule.packet_action.is_set = true;
 
@@ -711,7 +713,6 @@ bool PbhHelper::parsePbhRuleFlowCounter(PbhRule &rule, const std::string &field,
         return false;
     }
 
-    //rule.flow_counter.meta.name = field;
     rule.flow_counter.value = cit->second;
     rule.flow_counter.is_set = true;
 
@@ -1001,6 +1002,7 @@ bool PbhHelper::validatePbhRule(PbhRule &rule) const
             PBH_RULE_PACKET_ACTION_SET_ECMP_HASH
         );
 
+        rule.packet_action.meta.name = PBH_RULE_PACKET_ACTION;
         rule.packet_action.value = SAI_ACL_ENTRY_ATTR_ACTION_SET_ECMP_HASH_ID;
         rule.packet_action.is_set = true;
 
@@ -1014,7 +1016,7 @@ bool PbhHelper::validatePbhRule(PbhRule &rule) const
             PBH_RULE_FLOW_COUNTER,
             PBH_RULE_FLOW_COUNTER_DISABLED
         );
-        //rule.flow_counter.meta.name = PBH_RULE_FLOW_COUNTER;
+
         rule.flow_counter.value = false;
         rule.flow_counter.is_set = true;
 

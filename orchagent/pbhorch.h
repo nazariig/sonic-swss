@@ -13,16 +13,25 @@
 class PbhOrch final : public Orch
 {
 public:
+    PbhOrch() = delete;
+    ~PbhOrch() = default;
+
     PbhOrch(
         std::vector<TableConnector> &connectorList,
         AclOrch *aclOrch,
         PortsOrch *portsOrch
     );
-    ~PbhOrch();
 
     using Orch::doTask;  // Allow access to the basic doTask
 
 private:
+    template<typename T>
+    std::vector<std::string> getPbhAddedFields(const T &obj, const T &nObj) const;
+    template<typename T>
+    std::vector<std::string> getPbhUpdatedFields(const T &obj, const T &nObj) const;
+    template<typename T>
+    std::vector<std::string> getPbhRemovedFields(const T &obj, const T &nObj) const;
+
     template<typename T>
     auto getPbhSetupTaskMap() const -> const std::unordered_map<std::string, T>&;
     template<typename T>
@@ -35,24 +44,6 @@ private:
 
     template<typename T>
     bool pbhTaskExists(const T &obj) const;
-
-
-
-
-
-
-    template<typename T>
-    std::vector<std::string> getPbhAddedFields(const T &obj, const T &nObj) const;
-    template<typename T>
-    std::vector<std::string> getPbhUpdatedFields(const T &obj, const T &nObj) const;
-    template<typename T>
-    std::vector<std::string> getPbhRemovedFields(const T &obj, const T &nObj) const;
-
-
-
-
-
-
 
     bool createPbhTable(const PbhTable &table);
     bool updatePbhTable(const PbhTable &table);
