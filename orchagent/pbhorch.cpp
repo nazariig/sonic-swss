@@ -669,23 +669,6 @@ bool PbhOrch::updatePbhRule(const PbhRule &rule)
     const auto &uFields = this->getPbhUpdatedFields(rObj, rule);
     const auto &rFields = this->getPbhRemovedFields(rObj, rule);
 
-    // DEBUG ==========================================================================================================
-    for (const auto &it : aFields)
-    {
-        SWSS_LOG_NOTICE("=> PBH rule(%s) field(%s) has been added", rule.key.c_str(), it.c_str());
-    }
-
-    for (const auto &it : uFields)
-    {
-        SWSS_LOG_NOTICE("=> PBH rule(%s) field(%s) has been updated", rule.key.c_str(), it.c_str());
-    }
-
-    for (const auto &it : rFields)
-    {
-        SWSS_LOG_NOTICE("=> PBH rule(%s) field(%s) has been removed", rule.key.c_str(), it.c_str());
-    }
-    // DEBUG ==========================================================================================================
-
     if (aFields.empty() && uFields.empty() && rFields.empty())
     {
         SWSS_LOG_NOTICE("PBH rule(%s) in SAI is up-to-date", rule.key.c_str());
