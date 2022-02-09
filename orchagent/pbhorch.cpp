@@ -885,9 +885,21 @@ bool PbhOrch::updatePbhRule(const PbhRule &rule)
         return false;
     }
 
+    if (!this->pbhHlpr.decRefCount(rObj))
+    {
+        SWSS_LOG_ERROR("Failed to remove PBH rule(%s) dependencies", rObj.key.c_str());
+        return false;
+    }
+
     if (!this->pbhHlpr.updatePbhRule(rule))
     {
         SWSS_LOG_ERROR("Failed to update PBH rule(%s) in internal cache", rule.key.c_str());
+        return false;
+    }
+
+    if (!this->pbhHlpr.incRefCount(rule))
+    {
+        SWSS_LOG_ERROR("Failed to add PBH rule(%s) dependencies", rule.key.c_str());
         return false;
     }
 
@@ -1166,11 +1178,23 @@ bool PbhOrch::updatePbhHash(const PbhHash &hash)
         return false;
     }
 
+    if (!this->pbhHlpr.decRefCount(hObj))
+    {
+        SWSS_LOG_ERROR("Failed to remove PBH hash(%s) dependencies", hObj.key.c_str());
+        return false;
+    }
+
     hObj.hash_field_list = hash.hash_field_list;
 
     if (!this->pbhHlpr.updatePbhHash(hObj))
     {
         SWSS_LOG_ERROR("Failed to update PBH hash(%s) in internal cache", hObj.key.c_str());
+        return false;
+    }
+
+    if (!this->pbhHlpr.incRefCount(hObj))
+    {
+        SWSS_LOG_ERROR("Failed to add PBH hash(%s) dependencies", hObj.key.c_str());
         return false;
     }
 
