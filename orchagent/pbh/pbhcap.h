@@ -11,15 +11,15 @@
 
 enum class PbhAsicVendor : std::int32_t
 {
-    GENERIC  = 0,
-    MELLANOX = 1
+    GENERIC,
+    MELLANOX
 };
 
 enum class PbhFieldCapability : std::int32_t
 {
-    ADD    = 0,
-    UPDATE = 1,
-    REMOVE = 2
+    ADD,
+    UPDATE,
+    REMOVE
 };
 
 class PbhVendorFieldCapabilities
