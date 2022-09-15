@@ -1,0 +1,24 @@
+#pragma once
+
+#include "swcnt.h"
+
+class SwitchHelper final
+{
+public:
+    SwitchHelper() = default;
+    ~SwitchHelper() = default;
+
+    const SwitchHash& getSwHash() const;
+    void setSwHash(const SwitchHash &hash);
+
+    bool parseSwHash(SwitchHash &hash) const;
+
+private:
+    bool parseSwHashEcmpHash(SwitchHash &hash, const std::string &field, const std::string &value) const;
+    bool parseSwHashLagHash(SwitchHash &hash, const std::string &field, const std::string &value) const;
+
+    bool validateSwHash(SwitchHash &hash) const;
+
+private:
+    SwitchHash swHash;
+};

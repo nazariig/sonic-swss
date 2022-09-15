@@ -3,6 +3,7 @@
 #include "acltable.h"
 #include "orch.h"
 #include "timer.h"
+#include "switch/swhlpr.h"
 
 #define DEFAULT_ASIC_SENSORS_POLLER_INTERVAL 60
 #define ASIC_SENSORS_POLLER_STATUS "ASIC_SENSORS_POLLER_STATUS"
@@ -46,10 +47,28 @@ public:
 private:
     void doTask(Consumer &consumer);
     void doTask(swss::SelectableTimer &timer);
+    void doCfgSwitchHashTableTask(Consumer &consumer);
     void doCfgSensorsTableTask(Consumer &consumer);
     void doAppSwitchTableTask(Consumer &consumer);
     void initSensorsTable();
     void querySwitchTpidCapability();
+
+    // Switch hash
+    bool setSwitchHashFieldListSai(sai_object_id_t oid, std::vector<sai_int32_t> &hfList) const;
+    bool setSwitchHashEcmpHashDefault() const;
+    bool setSwitchHashLagHashDefault() const;
+    bool setSwitchHashEcmpHash(const SwitchHash &hash) const;
+    bool setSwitchHashLagHash(const SwitchHash &hash) const;
+    bool setSwitchHash(const SwitchHash &hash);
+
+    bool getSwitchHashOidSai(sai_object_id_t &oid, bool isEcmpHashOid) const;
+    bool getSwitchHashFieldListSai(std::set<sai_native_hash_field_t> &hfSet, sai_object_id_t oid) const;
+    void getSwitchHashEcmpOid();
+    void getSwitchHashLagOid();
+    void getSwitchHashEcmpHashFields();
+    void getSwitchHashLagHashFields();
+    void querySwitchHashDefaults();
+
     sai_status_t setSwitchTunnelVxlanParams(swss::FieldValueTuple &val);
     void setSwitchNonSaiAttributes(swss::FieldValueTuple &val);
 
@@ -85,7 +104,22 @@ private:
     bool m_orderedEcmpEnable = false;
     bool m_PfcDlrInitEnable = false;
 
+    // Switch hash SAI defaults
+    struct {
+        struct {
+            sai_object_id_t oid = SAI_NULL_OBJECT_ID;
+            std::set<sai_native_hash_field_t> hashFieldSet;
+        } ecmpHash;
+        struct {
+            sai_object_id_t oid = SAI_NULL_OBJECT_ID;
+            std::set<sai_native_hash_field_t> hashFieldSet;
+        } lagHash;
+    } m_switchHashDefaults;
+
     // Information contained in the request from
     // external program for orchagent pre-shutdown state check
     WarmRestartCheck m_warmRestartCheck = {false, false, false};
+
+    // Switch OA helper
+    SwitchHelper swHlpr;
 };
