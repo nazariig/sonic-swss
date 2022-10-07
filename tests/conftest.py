@@ -26,6 +26,7 @@ from dvslib import dvs_port
 from dvslib import dvs_lag
 from dvslib import dvs_mirror
 from dvslib import dvs_policer
+from dvslib import dvs_hash
 
 from buffer_model import enable_dynamic_buffer
 
@@ -1883,6 +1884,11 @@ def dvs_mirror_manager(request, dvs):
 def dvs_policer_manager(request, dvs):
     request.cls.dvs_policer = dvs_policer.DVSPolicer(dvs.get_asic_db(),
                                                      dvs.get_config_db())
+
+@pytest.fixture(scope="class")
+def dvs_hash_manager(request, dvs):
+    request.cls.dvs_hash = dvs_hash.DVSHash(dvs.get_asic_db(),
+                                            dvs.get_config_db())
 
 ##################### DPB fixtures ###########################################
 def create_dpb_config_file(dvs):
