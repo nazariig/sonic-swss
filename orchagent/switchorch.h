@@ -55,18 +55,13 @@ private:
 
     // Switch hash
     bool setSwitchHashFieldListSai(sai_object_id_t oid, std::vector<sai_int32_t> &hfList) const;
-    bool setSwitchHashEcmpHashDefault() const;
-    bool setSwitchHashLagHashDefault() const;
     bool setSwitchHashEcmpHash(const SwitchHash &hash) const;
     bool setSwitchHashLagHash(const SwitchHash &hash) const;
     bool setSwitchHash(const SwitchHash &hash);
 
     bool getSwitchHashOidSai(sai_object_id_t &oid, bool isEcmpHashOid) const;
-    bool getSwitchHashFieldListSai(std::set<sai_native_hash_field_t> &hfSet, sai_object_id_t oid) const;
     void getSwitchHashEcmpOid();
     void getSwitchHashLagOid();
-    void getSwitchHashEcmpHashFields();
-    void getSwitchHashLagHashFields();
     void querySwitchHashDefaults();
 
     sai_status_t setSwitchTunnelVxlanParams(swss::FieldValueTuple &val);
@@ -108,11 +103,9 @@ private:
     struct {
         struct {
             sai_object_id_t oid = SAI_NULL_OBJECT_ID;
-            std::set<sai_native_hash_field_t> hashFieldSet;
         } ecmpHash;
         struct {
             sai_object_id_t oid = SAI_NULL_OBJECT_ID;
-            std::set<sai_native_hash_field_t> hashFieldSet;
         } lagHash;
     } m_switchHashDefaults;
 
