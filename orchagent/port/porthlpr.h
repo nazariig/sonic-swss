@@ -19,6 +19,7 @@ public:
 public:
     bool fecToStr(std::string &str, sai_port_fec_mode_t value) const;
 
+    std::string getAutonegStr(const PortConfig &port) const;
     std::string getPortInterfaceTypeStr(const PortConfig &port) const;
     std::string getAdvInterfaceTypesStr(const PortConfig &port) const;
     std::string getFecStr(const PortConfig &port) const;

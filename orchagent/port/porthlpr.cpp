@@ -148,6 +148,11 @@ std::string PortHelper::getFieldValueStr(const PortConfig &port, const std::stri
     return str;
 }
 
+std::string PortHelper::getAutonegStr(const PortConfig &port) const
+{
+    return this->getFieldValueStr(port, PORT_AUTONEG);
+}
+
 std::string PortHelper::getPortInterfaceTypeStr(const PortConfig &port) const
 {
     return this->getFieldValueStr(port, PORT_INTERFACE_TYPE);

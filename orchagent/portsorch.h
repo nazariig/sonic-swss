@@ -218,7 +218,7 @@ private:
     // Supported speeds on the system side.
     std::map<sai_object_id_t, PortSupportedSpeeds> m_portSupportedSpeeds;
     // Supported FEC modes on the system side.
-    std::map<sai_object_id_t, PortSupportedFecModes> m_portSupportedFecModes;
+    std::map<sai_object_id_t, std::tuple<bool, PortSupportedFecModes>> m_portSupportedFecModes;
 
     bool m_initDone = false;
     Port m_cpuPort;
@@ -328,10 +328,12 @@ private:
 
     bool setBridgePortAdminStatus(sai_object_id_t id, bool up);
 
+    // Get supported speeds on system side
     bool isSpeedSupported(const std::string& alias, sai_object_id_t port_id, sai_uint32_t speed);
     void getPortSupportedSpeeds(const std::string& alias, sai_object_id_t port_id, PortSupportedSpeeds &supported_speeds);
     void initPortSupportedSpeeds(const std::string& alias, sai_object_id_t port_id);
     // Get supported FEC modes on system side
+    bool isFecModeSupported(const Port &port, sai_port_fec_mode_t fec_mode);
     sai_status_t getPortSupportedFecModes(PortSupportedFecModes &supported_fecmodes, sai_object_id_t port_id);
     void initPortSupportedFecModes(const std::string& alias, sai_object_id_t port_id);
     task_process_status setPortSpeed(Port &port, sai_uint32_t speed);
@@ -430,6 +432,9 @@ private:
     bool removePortBulk(const std::vector<sai_object_id_t> &portList);
 
 private:
+    // Port config aggregator
+    std::unordered_map<std::string, std::unordered_map<std::string, std::string>> m_portConfigMap;
+
     // Port bulk API capabilities
     struct {
         bool isCreateSupported = false;

@@ -931,10 +931,7 @@ bool PortsOrch::removePortBulk(const std::vector<sai_object_id_t> &portList)
         // else : port is in default state or not yet created
 
         // Remove port serdes (if exists) before removing port since this reference is dependency
-        if (!p.m_preemphasis.empty())
-        {
-            removePortSerdesAttribute(cit);
-        }
+        removePortSerdesAttribute(cit);
     }
 
     auto portCount = static_cast<std::uint32_t>(portList.size());
@@ -1610,26 +1607,6 @@ bool PortsOrch::setPortTpid(Port &port, sai_uint16_t tpid)
 bool PortsOrch::setPortFec(Port &port, sai_port_fec_mode_t fec_mode)
 {
     SWSS_LOG_ENTER();
-
-    auto searchRef = m_portSupportedFecModes.find(port.m_port_id);
-    if (searchRef != m_portSupportedFecModes.end())
-    {
-        auto &supportedFecModes = searchRef->second;
-        if (supportedFecModes.find(fec_mode) == supportedFecModes.end())
-        {
-            std::string fec_mode_str;
-            if (!m_portHlpr.fecToStr(fec_mode_str, fec_mode))
-            {
-                SWSS_LOG_ERROR("Unknown FEC mode %d on port %s", fec_mode, port.m_alias.c_str());
-                return false;
-            }
-
-            SWSS_LOG_ERROR("Unsupported FEC mode %s on port %s", fec_mode_str.c_str(), port.m_alias.c_str());
-            // We return true becase the caller will keep the item in m_toSync and retry it later if we return false
-            // As the FEC mode is not supported it doesn't make sense to retry.
-            return true;
-        }
-    }
 
     sai_attribute_t attr;
     attr.id = SAI_PORT_ATTR_FEC_MODE;
@@ -2435,6 +2412,29 @@ void PortsOrch::initPortCapLinkTraining(Port &port)
     SWSS_LOG_WARN("Unable to get %s LT support capability", port.m_alias.c_str());
 }
 
+bool PortsOrch::isFecModeSupported(const Port &port, sai_port_fec_mode_t fec_mode)
+{
+    initPortSupportedFecModes(port.m_alias, port.m_port_id);
+
+    const auto &obj = m_portSupportedFecModes.at(port.m_port_id);
+
+    auto supported = std::get<0>(obj);
+
+    if (!supported)
+    {
+        return true;
+    }
+
+    const auto &list = std::get<1>(obj);
+
+    if (list.empty())
+    {
+        return false;
+    }
+
+    return std::find(list.cbegin(), list.cend(), fec_mode) != list.cend();
+}
+
 sai_status_t PortsOrch::getPortSupportedFecModes(PortSupportedFecModes &supported_fecmodes, sai_object_id_t port_id)
 {
     SWSS_LOG_ENTER();
@@ -2486,7 +2486,12 @@ void PortsOrch::initPortSupportedFecModes(const std::string& alias, sai_object_i
         return;
     }
 
-    PortSupportedFecModes supported_fec_modes;
+    auto &obj = m_portSupportedFecModes[port_id];
+    auto &supported = std::get<0>(obj);
+    auto &supported_fec_modes = std::get<1>(obj);
+
+    supported = false;
+
     auto status = getPortSupportedFecModes(supported_fec_modes, port_id);
     if (status != SAI_STATUS_SUCCESS)
     {
@@ -2496,7 +2501,7 @@ void PortsOrch::initPortSupportedFecModes(const std::string& alias, sai_object_i
         return;
     }
 
-    m_portSupportedFecModes[port_id] = supported_fec_modes;
+    supported = true;
 
     std::vector<std::string> fecModeList;
     if (supported_fec_modes.empty())
@@ -3409,6 +3414,8 @@ void PortsOrch::doPortTask(Consumer &consumer)
 
         if (op == SET_COMMAND)
         {
+            auto &fvMap = m_portConfigMap[key];
+
             for (const auto &cit : kfvFieldsValues(keyOpFieldsValues))
             {
                 auto fieldName = fvField(cit);
@@ -3416,8 +3423,10 @@ void PortsOrch::doPortTask(Consumer &consumer)
 
                 SWSS_LOG_INFO("FIELD: %s, VALUE: %s", fieldName.c_str(), fieldValue.c_str());
 
-                pCfg.fieldValueMap[fieldName] = fieldValue;
+                fvMap[fieldName] = fieldValue;
             }
+
+            pCfg.fieldValueMap = fvMap;
 
             if (!m_portHlpr.parsePortConfig(pCfg))
             {
@@ -3624,8 +3633,8 @@ void PortsOrch::doPortTask(Consumer &consumer)
                         updatePortStatePoll(p, PORT_STATE_POLL_AN, pCfg.autoneg.value);
 
                         SWSS_LOG_NOTICE(
-                            "Set port %s AutoNeg from %d to %d",
-                            p.m_alias.c_str(), p.m_autoneg, pCfg.autoneg.value
+                            "Set port %s autoneg to %s",
+                            p.m_alias.c_str(), m_portHlpr.getAutonegStr(pCfg).c_str()
                         );
                     }
                 }
@@ -3677,8 +3686,8 @@ void PortsOrch::doPortTask(Consumer &consumer)
                         }
 
                         SWSS_LOG_NOTICE(
-                            "Set port %s LT from %d to %d",
-                            p.m_alias.c_str(), p.m_link_training, pCfg.link_training.value
+                            "Set port %s link training to %s",
+                            p.m_alias.c_str(), m_portHlpr.getLinkTrainingStr(pCfg).c_str()
                         );
                     }
                 }
@@ -3738,8 +3747,8 @@ void PortsOrch::doPortTask(Consumer &consumer)
                         m_portList[p.m_alias] = p;
 
                         SWSS_LOG_NOTICE(
-                            "Set port %s speed from %u to %u",
-                            p.m_alias.c_str(), p.m_speed, pCfg.speed.value
+                            "Set port %s speed to %u",
+                            p.m_alias.c_str(), pCfg.speed.value
                         );
                     }
                     else
@@ -3892,7 +3901,7 @@ void PortsOrch::doPortTask(Consumer &consumer)
                         m_portList[p.m_alias] = p;
 
                         SWSS_LOG_NOTICE(
-                            "Set port %s advertised interface types to %s",
+                            "Set port %s advertised interface type to %s",
                             p.m_alias.c_str(), m_portHlpr.getAdvInterfaceTypesStr(pCfg).c_str()
                         );
                     }
@@ -3959,6 +3968,17 @@ void PortsOrch::doPortTask(Consumer &consumer)
                     /* reset fec mode upon mode change */
                     if (p.m_fec_mode != pCfg.fec.value)
                     {
+                        if (!isFecModeSupported(p, pCfg.fec.value))
+                        {
+                            SWSS_LOG_ERROR(
+                                "Unsupported port %s FEC mode %s",
+                                p.m_alias.c_str(), m_portHlpr.getFecStr(pCfg).c_str()
+                            );
+                            // FEC mode is not supported, don't retry
+                            it = map.erase(it);
+                            continue;
+                        }
+
                         if (p.m_admin_state_up)
                         {
                             /* Bring port down before applying fec mode*/
@@ -3990,7 +4010,7 @@ void PortsOrch::doPortTask(Consumer &consumer)
                         m_portList[p.m_alias] = p;
 
                         SWSS_LOG_NOTICE(
-                            "Set port %s FEC mode %s",
+                            "Set port %s FEC mode to %s",
                             p.m_alias.c_str(), m_portHlpr.getFecStr(pCfg).c_str()
                         );
                     }
@@ -4014,7 +4034,7 @@ void PortsOrch::doPortTask(Consumer &consumer)
                         m_portList[p.m_alias] = p;
 
                         SWSS_LOG_NOTICE(
-                            "Set port %s learn mode %s",
+                            "Set port %s learn mode to %s",
                             p.m_alias.c_str(), m_portHlpr.getLearnModeStr(pCfg).c_str()
                         );
                     }
@@ -4155,7 +4175,10 @@ void PortsOrch::doPortTask(Consumer &consumer)
             removePortFromPortListMap(port_id);
 
             /* Delete port from port list */
+            m_portConfigMap.erase(alias);
             m_portList.erase(alias);
+
+            SWSS_LOG_NOTICE("Removed port %s", alias.c_str());
         }
         else
         {
