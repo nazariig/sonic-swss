@@ -183,6 +183,16 @@ public:
     /* pre-emphasis */
     std::map<sai_port_serdes_attr_t, std::vector<uint32_t>> m_preemphasis;
 
+    /* Force initial parameter configuration flags */
+    bool m_an_cfg = false;        // Auto-negotiation (AN)
+    bool m_adv_speed_cfg = false; // Advertised speed
+    bool m_intf_cfg = false;      // Interface type
+    bool m_adv_intf_cfg = false;  // Advertised interface type
+    bool m_fec_cfg = false;       // Forward Error Correction (FEC)
+    bool m_pfc_asym_cfg = false;  // Asymmetric Priority Flow Control (PFC)
+    bool m_lm_cfg = false;        // Forwarding Database (FDB) Learning Mode (LM)
+    bool m_lt_cfg = false;        // Link Training (LT)
+
     int m_cap_an = -1; /* Capability - AutoNeg, -1 means not set */
     int m_cap_lt = -1; /* Capability - LinkTraining, -1 means not set */
 };

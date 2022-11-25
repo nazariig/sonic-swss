@@ -39,12 +39,12 @@
 #define PORT_FEC_RS   "rs"
 #define PORT_FEC_FC   "fc"
 
-#define  PORT_LEARN_MODE_DROP         "drop"
-#define  PORT_LEARN_MODE_DISABLE      "disable"
-#define  PORT_LEARN_MODE_HARDWARE     "hardware"
-#define  PORT_LEARN_MODE_CPU_TRAP     "cpu_trap"
-#define  PORT_LEARN_MODE_CPU_LOG      "cpu_log"
-#define  PORT_LEARN_MODE_NOTIFICATION "notification"
+#define PORT_LEARN_MODE_DROP         "drop"
+#define PORT_LEARN_MODE_DISABLE      "disable"
+#define PORT_LEARN_MODE_HARDWARE     "hardware"
+#define PORT_LEARN_MODE_CPU_TRAP     "cpu_trap"
+#define PORT_LEARN_MODE_CPU_LOG      "cpu_log"
+#define PORT_LEARN_MODE_NOTIFICATION "notification"
 
 #define PORT_ROLE_EXT "Ext"
 #define PORT_ROLE_INT "Int"

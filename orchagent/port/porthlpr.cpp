@@ -7,6 +7,8 @@
 #include <string>
 #include <exception>
 
+#include <boost/algorithm/string.hpp>
+
 #include "portschema.h"
 #include "porttype.h"
 #include "converter.h"
@@ -329,13 +331,15 @@ bool PortHelper::parsePortAdvSpeeds(PortConfig &port, const std::string &field, 
         return false;
     }
 
-    if (value == PORT_ADV_ALL)
+    auto nValue = boost::algorithm::to_lower_copy(value);
+
+    if (nValue == PORT_ADV_ALL)
     {
         port.adv_speeds.is_set = true;
         return true;
     }
 
-    const auto &speedList = tokenize(value, ',');
+    const auto &speedList = tokenize(nValue, ',');
 
     try
     {
@@ -381,7 +385,9 @@ bool PortHelper::parsePortInterfaceType(PortConfig &port, const std::string &fie
         return false;
     }
 
-    const auto &cit = portInterfaceTypeMap.find(value);
+    auto nValue = boost::algorithm::to_lower_copy(value);
+
+    const auto &cit = portInterfaceTypeMap.find(nValue);
     if (cit == portInterfaceTypeMap.cend())
     {
         SWSS_LOG_ERROR("Failed to parse field(%s): invalid value(%s)", field.c_str(), value.c_str());
@@ -404,13 +410,15 @@ bool PortHelper::parsePortAdvInterfaceTypes(PortConfig &port, const std::string 
         return false;
     }
 
-    if (value == PORT_ADV_ALL)
+    auto nValue = boost::algorithm::to_lower_copy(value);
+
+    if (nValue == PORT_ADV_ALL)
     {
         port.adv_interface_types.is_set = true;
         return true;
     }
 
-    const auto &intfTypeList = tokenize(value, ',');
+    const auto &intfTypeList = tokenize(nValue, ',');
 
     for (const auto &cit1 : intfTypeList)
     {

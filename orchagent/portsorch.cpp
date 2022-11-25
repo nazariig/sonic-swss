@@ -16,7 +16,6 @@
 #include <tuple>
 #include <sstream>
 #include <unordered_set>
-#include <boost/algorithm/string.hpp>
 
 #include <netinet/if_ether.h>
 #include "net/if.h"
@@ -1742,6 +1741,9 @@ bool PortsOrch::setPortPfcAsym(Port &port, sai_port_priority_flow_control_mode_t
     {
         return false;
     }
+
+    port.m_pfc_asym = pfc_asym;
+    m_portList[port.m_alias] = port;
 
     sai_attribute_t attr;
     attr.id = SAI_PORT_ATTR_PRIORITY_FLOW_CONTROL_MODE;
@@ -3578,7 +3580,7 @@ void PortsOrch::doPortTask(Consumer &consumer)
 
                 if (pCfg.autoneg.is_set)
                 {
-                    if (p.m_autoneg != pCfg.autoneg.value)
+                    if (!p.m_an_cfg || p.m_autoneg != pCfg.autoneg.value)
                     {
                         if (p.m_cap_an < 0)
                         {
@@ -3628,6 +3630,7 @@ void PortsOrch::doPortTask(Consumer &consumer)
                         }
 
                         p.m_autoneg = pCfg.autoneg.value;
+                        p.m_an_cfg = true;
                         m_portList[p.m_alias] = p;
                         m_portStateTable.hdel(p.m_alias, "rmt_adv_speeds");
                         updatePortStatePoll(p, PORT_STATE_POLL_AN, pCfg.autoneg.value);
@@ -3641,7 +3644,7 @@ void PortsOrch::doPortTask(Consumer &consumer)
 
                 if (pCfg.link_training.is_set)
                 {
-                    if ((p.m_link_training != pCfg.link_training.value) && (p.m_type == Port::PHY))
+                    if (!p.m_lt_cfg || ((p.m_link_training != pCfg.link_training.value) && (p.m_type == Port::PHY)))
                     {
                         if (p.m_cap_lt < 0)
                         {
@@ -3676,6 +3679,7 @@ void PortsOrch::doPortTask(Consumer &consumer)
 
                         m_portStateTable.hset(p.m_alias, "link_training_status", m_portHlpr.getLinkTrainingStr(pCfg));
                         p.m_link_training = pCfg.link_training.value;
+                        p.m_lt_cfg = true;
                         m_portList[p.m_alias] = p;
                         updatePortStatePoll(p, PORT_STATE_POLL_LT, pCfg.link_training.value);
 
@@ -3760,7 +3764,7 @@ void PortsOrch::doPortTask(Consumer &consumer)
 
                 if (pCfg.adv_speeds.is_set)
                 {
-                    if (p.m_adv_speeds != pCfg.adv_speeds.value)
+                    if (!p.m_adv_speed_cfg || p.m_adv_speeds != pCfg.adv_speeds.value)
                     {
                         if (p.m_admin_state_up && p.m_autoneg)
                         {
@@ -3800,6 +3804,7 @@ void PortsOrch::doPortTask(Consumer &consumer)
                         }
 
                         p.m_adv_speeds = pCfg.adv_speeds.value;
+                        p.m_adv_speed_cfg = true;
                         m_portList[p.m_alias] = p;
 
                         SWSS_LOG_NOTICE(
@@ -3811,7 +3816,7 @@ void PortsOrch::doPortTask(Consumer &consumer)
 
                 if (pCfg.interface_type.is_set)
                 {
-                    if (p.m_interface_type != pCfg.interface_type.value)
+                    if (!p.m_intf_cfg || p.m_interface_type != pCfg.interface_type.value)
                     {
                         if (p.m_admin_state_up && !p.m_autoneg)
                         {
@@ -3849,6 +3854,7 @@ void PortsOrch::doPortTask(Consumer &consumer)
                         }
 
                         p.m_interface_type = pCfg.interface_type.value;
+                        p.m_intf_cfg = true;
                         m_portList[p.m_alias] = p;
 
                         SWSS_LOG_NOTICE(
@@ -3860,7 +3866,7 @@ void PortsOrch::doPortTask(Consumer &consumer)
 
                 if (pCfg.adv_interface_types.is_set)
                 {
-                    if (p.m_adv_interface_types != pCfg.adv_interface_types.value)
+                    if (!p.m_adv_intf_cfg || p.m_adv_interface_types != pCfg.adv_interface_types.value)
                     {
                         if (p.m_admin_state_up && p.m_autoneg)
                         {
@@ -3898,6 +3904,7 @@ void PortsOrch::doPortTask(Consumer &consumer)
                         }
 
                         p.m_adv_interface_types = pCfg.adv_interface_types.value;
+                        p.m_adv_intf_cfg = true;
                         m_portList[p.m_alias] = p;
 
                         SWSS_LOG_NOTICE(
@@ -3966,7 +3973,7 @@ void PortsOrch::doPortTask(Consumer &consumer)
                 if (pCfg.fec.is_set)
                 {
                     /* reset fec mode upon mode change */
-                    if (p.m_fec_mode != pCfg.fec.value)
+                    if (!p.m_fec_cfg || p.m_fec_mode != pCfg.fec.value)
                     {
                         if (!isFecModeSupported(p, pCfg.fec.value))
                         {
@@ -4007,6 +4014,7 @@ void PortsOrch::doPortTask(Consumer &consumer)
                         }
 
                         p.m_fec_mode = pCfg.fec.value;
+                        p.m_fec_cfg = true;
                         m_portList[p.m_alias] = p;
 
                         SWSS_LOG_NOTICE(
@@ -4018,7 +4026,7 @@ void PortsOrch::doPortTask(Consumer &consumer)
 
                 if (pCfg.learn_mode.is_set)
                 {
-                    if (p.m_learn_mode != pCfg.learn_mode.value)
+                    if (!p.m_lm_cfg || p.m_learn_mode != pCfg.learn_mode.value)
                     {
                         if(!setBridgePortLearnMode(p, pCfg.learn_mode.value))
                         {
@@ -4031,6 +4039,7 @@ void PortsOrch::doPortTask(Consumer &consumer)
                         }
 
                         p.m_learn_mode = pCfg.learn_mode.value;
+                        p.m_lm_cfg = true;
                         m_portList[p.m_alias] = p;
 
                         SWSS_LOG_NOTICE(
@@ -4042,7 +4051,7 @@ void PortsOrch::doPortTask(Consumer &consumer)
 
                 if (pCfg.pfc_asym.is_set)
                 {
-                    if (p.m_pfc_asym != pCfg.pfc_asym.value)
+                    if (!p.m_pfc_asym_cfg || p.m_pfc_asym != pCfg.pfc_asym.value)
                     {
                         if (!setPortPfcAsym(p, pCfg.pfc_asym.value))
                         {
@@ -4055,6 +4064,7 @@ void PortsOrch::doPortTask(Consumer &consumer)
                         }
 
                         p.m_pfc_asym = pCfg.pfc_asym.value;
+                        p.m_pfc_asym_cfg = true;
                         m_portList[p.m_alias] = p;
 
                         SWSS_LOG_NOTICE(
