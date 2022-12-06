@@ -22,6 +22,9 @@ namespace portsorch_test
 {
     using namespace std;
 
+    // SAI default ports
+    std::map<std::string, std::vector<swss::FieldValueTuple>> defaultPortList;
+
     // Port bulk API capabilities
     struct {
         bool isCreateSupported = false;
@@ -160,6 +163,37 @@ namespace portsorch_test
             obj->m_portBulkApiCap.isRemoveSupported = portBulkApiCap.isRemoveSupported;
             portBulkApiCap.is_set = false;
         }
+    }
+
+    void cleanupPorts(PortsOrch *obj)
+    {
+        // Get CPU port
+        Port p;
+        obj->getCpuPort(p);
+
+        // Get port list
+        auto portList = obj->getAllPorts();
+        portList.erase(p.m_alias);
+
+        // Generate port config
+        std::deque<KeyOpFieldsValuesTuple> kfvList;
+
+        for (const auto &cit : portList)
+        {
+            kfvList.push_back({ cit.first, DEL_COMMAND, { } });
+        }
+
+        // Refill consumer
+        auto consumer = dynamic_cast<Consumer*>(obj->getExecutor(APP_PORT_TABLE_NAME));
+        consumer->addToSync(kfvList);
+
+        // Apply configuration
+        static_cast<Orch*>(obj)->doTask();
+
+        // Dump pending tasks
+        std::vector<std::string> taskList;
+        obj->dumpPendingTasks(taskList);
+        ASSERT_TRUE(taskList.empty());
     }
 
     struct PortsOrchTest : public ::testing::Test
@@ -303,6 +337,10 @@ namespace portsorch_test
             ASSERT_EQ(status, SAI_STATUS_SUCCESS);
 
             gVirtualRouterId = attr.value.oid;
+
+            // Get SAI default ports
+            defaultPortList = ut_helper::getInitialSaiPorts();
+            ASSERT_TRUE(!defaultPortList.empty());
         }
 
         static void TearDownTestCase()
@@ -321,7 +359,7 @@ namespace portsorch_test
         auto portTable = Table(m_app_db.get(), APP_PORT_TABLE_NAME);
 
         // Get SAI default ports
-        auto ports = ut_helper::getInitialSaiPorts();
+        auto &ports = defaultPortList;
         ASSERT_TRUE(!ports.empty());
 
         // Generate port config
@@ -381,6 +419,9 @@ namespace portsorch_test
         std::vector<std::string> taskList;
         gPortsOrch->dumpPendingTasks(taskList);
         ASSERT_TRUE(taskList.empty());
+
+        // Cleanup ports
+        cleanupPorts(gPortsOrch);
     }
 
     TEST_F(PortsOrchTest, PortLegacyCreateRemove)
@@ -388,7 +429,7 @@ namespace portsorch_test
         auto portTable = Table(m_app_db.get(), APP_PORT_TABLE_NAME);
 
         // Get SAI default ports
-        auto ports = ut_helper::getInitialSaiPorts();
+        auto &ports = defaultPortList;
         ASSERT_TRUE(!ports.empty());
 
         // Generate port config
@@ -448,6 +489,9 @@ namespace portsorch_test
         std::vector<std::string> taskList;
         gPortsOrch->dumpPendingTasks(taskList);
         ASSERT_TRUE(taskList.empty());
+
+        // Cleanup ports
+        cleanupPorts(gPortsOrch);
     }
 
     TEST_F(PortsOrchTest, PortBasicConfig)
@@ -455,7 +499,7 @@ namespace portsorch_test
         auto portTable = Table(m_app_db.get(), APP_PORT_TABLE_NAME);
 
         // Get SAI default ports
-        auto ports = ut_helper::getInitialSaiPorts();
+        auto &ports = defaultPortList;
         ASSERT_TRUE(!ports.empty());
 
         // Generate port config
@@ -549,6 +593,9 @@ namespace portsorch_test
         std::vector<std::string> taskList;
         gPortsOrch->dumpPendingTasks(taskList);
         ASSERT_TRUE(taskList.empty());
+
+        // Cleanup ports
+        cleanupPorts(gPortsOrch);
     }
 
     TEST_F(PortsOrchTest, PortAdvancedConfig)
@@ -556,7 +603,7 @@ namespace portsorch_test
         auto portTable = Table(m_app_db.get(), APP_PORT_TABLE_NAME);
 
         // Get SAI default ports
-        auto ports = ut_helper::getInitialSaiPorts();
+        auto &ports = defaultPortList;
         ASSERT_TRUE(!ports.empty());
 
         // Generate port config
