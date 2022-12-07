@@ -384,9 +384,6 @@ PortsOrch::PortsOrch(DBConnector *db, DBConnector *stateDb, vector<table_name_wi
 {
     SWSS_LOG_ENTER();
 
-    /* Initialize port bulk API capabilities */
-    this->initializePortBulkCapabilities();
-
     /* Initialize counter table */
     m_counter_db = shared_ptr<DBConnector>(new DBConnector("COUNTERS_DB", 0));
     m_counterTable = unique_ptr<Table>(new Table(m_counter_db.get(), COUNTERS_PORT_NAME_MAP));
@@ -678,70 +675,6 @@ auto PortsOrch::getPortConfigState() const -> port_config_state_t
 void PortsOrch::setPortConfigState(port_config_state_t value)
 {
     this->m_portConfigState = value;
-}
-
-bool PortsOrch::isPortBulkCreateSupported() const
-{
-    return this->m_portBulkApiCap.isCreateSupported;
-}
-
-bool PortsOrch::isPortBulkRemoveSupported() const
-{
-    return this->m_portBulkApiCap.isRemoveSupported;
-}
-
-bool PortsOrch::isPortBulkSupported() const
-{
-    return this->isPortBulkCreateSupported() && this->isPortBulkRemoveSupported();
-}
-
-bool PortsOrch::checkIfPortBulkCreateSupported() const
-{
-    auto status = sai_port_api->create_ports(
-        gSwitchId, 0, nullptr, nullptr,
-        SAI_BULK_OP_ERROR_MODE_STOP_ON_ERROR,
-        nullptr, nullptr
-    );
-    if ((status == SAI_STATUS_NOT_SUPPORTED) ||
-        (status == SAI_STATUS_NOT_IMPLEMENTED))
-    {
-        return false;
-    }
-
-    return true;
-}
-
-bool PortsOrch::checkIfPortBulkRemoveSupported() const
-{
-    auto status = sai_port_api->remove_ports(
-        0, nullptr,
-        SAI_BULK_OP_ERROR_MODE_STOP_ON_ERROR,
-        nullptr
-    );
-    if ((status == SAI_STATUS_NOT_SUPPORTED) ||
-        (status == SAI_STATUS_NOT_IMPLEMENTED))
-    {
-        return false;
-    }
-
-    return true;
-}
-
-void PortsOrch::initializePortBulkCapabilities()
-{
-    SWSS_LOG_ENTER();
-
-    this->m_portBulkApiCap.isCreateSupported = this->checkIfPortBulkCreateSupported();
-    if (!this->m_portBulkApiCap.isCreateSupported)
-    {
-        SWSS_LOG_WARN("Port bulk create is not supported");
-    }
-
-    this->m_portBulkApiCap.isRemoveSupported = this->checkIfPortBulkRemoveSupported();
-    if (!this->m_portBulkApiCap.isRemoveSupported)
-    {
-        SWSS_LOG_WARN("Port bulk remove is not supported");
-    }
 }
 
 bool PortsOrch::addPortBulk(const std::vector<PortConfig> &portList)
@@ -3455,23 +3388,12 @@ void PortsOrch::doPortTask(Consumer &consumer)
                 std::vector<PortConfig> portsToAddList;
                 std::vector<sai_object_id_t> portsToRemoveList;
 
-                // Legacy port remove comparison logic
+                // Port remove comparison logic
                 for (auto it = m_portListLaneMap.begin(); it != m_portListLaneMap.end();)
                 {
                     if (m_lanesAliasSpeedMap.find(it->first) == m_lanesAliasSpeedMap.end())
                     {
-                        if (isPortBulkRemoveSupported())
-                        {
-                            portsToRemoveList.push_back(it->second);
-                            it = m_portListLaneMap.erase(it);
-                            continue;
-                        }
-
-                        if (SAI_STATUS_SUCCESS != removePort(it->second))
-                        {
-                            SWSS_LOG_THROW("PortsOrch initialization failure");
-                        }
-
+                        portsToRemoveList.push_back(it->second);
                         it = m_portListLaneMap.erase(it);
                         continue;
                     }
@@ -3479,34 +3401,23 @@ void PortsOrch::doPortTask(Consumer &consumer)
                     it++;
                 }
 
-                // Bulk port remove comparison logic
-                if (isPortBulkRemoveSupported())
+                // Bulk port remove
+                if (!portsToRemoveList.empty())
                 {
-                    if (!portsToRemoveList.empty())
+                    if (!removePortBulk(portsToRemoveList))
                     {
-                        if (!removePortBulk(portsToRemoveList))
-                        {
-                            SWSS_LOG_THROW("PortsOrch initialization failure");
-                        }
+                        SWSS_LOG_THROW("PortsOrch initialization failure");
                     }
                 }
 
-                // Legacy port add comparison logic
+                // Port add comparison logic
                 for (auto it = m_lanesAliasSpeedMap.begin(); it != m_lanesAliasSpeedMap.end();)
                 {
                     if (m_portListLaneMap.find(it->first) == m_portListLaneMap.end())
                     {
-                        if (isPortBulkCreateSupported())
-                        {
-                            portsToAddList.push_back(it->second);
-                            it++;
-                            continue;
-                        }
-
-                        if (!addPort(it->second))
-                        {
-                            SWSS_LOG_THROW("PortsOrch initialization failure");
-                        }
+                        portsToAddList.push_back(it->second);
+                        it++;
+                        continue;
                     }
 
                     if (!initPort(it->second))
@@ -3522,15 +3433,12 @@ void PortsOrch::doPortTask(Consumer &consumer)
                     it++;
                 }
 
-                // Bulk port add comparison logic
-                if (isPortBulkCreateSupported())
+                // Bulk port add
+                if (!portsToAddList.empty())
                 {
-                    if (!portsToAddList.empty())
+                    if (!addPortBulk(portsToAddList))
                     {
-                        if (!addPortBulk(portsToAddList))
-                        {
-                            SWSS_LOG_THROW("PortsOrch initialization failure");
-                        }
+                        SWSS_LOG_THROW("PortsOrch initialization failure");
                     }
 
                     for (const auto &cit : portsToAddList)

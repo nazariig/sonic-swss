@@ -411,12 +411,6 @@ private:
 
     std::unordered_set<std::string> generateCounterStats(const string& type, bool gearbox = false);
 
-public:
-    // Port bulk API capabilities getters
-    bool isPortBulkCreateSupported() const;
-    bool isPortBulkRemoveSupported() const;
-    bool isPortBulkSupported() const;
-
 private:
     void initializeCpuPort();
     void initializePorts();
@@ -424,22 +418,12 @@ private:
     auto getPortConfigState() const -> port_config_state_t;
     void setPortConfigState(port_config_state_t value);
 
-    bool checkIfPortBulkCreateSupported() const;
-    bool checkIfPortBulkRemoveSupported() const;
-    void initializePortBulkCapabilities();
-
     bool addPortBulk(const std::vector<PortConfig> &portList);
     bool removePortBulk(const std::vector<sai_object_id_t> &portList);
 
 private:
     // Port config aggregator
     std::unordered_map<std::string, std::unordered_map<std::string, std::string>> m_portConfigMap;
-
-    // Port bulk API capabilities
-    struct {
-        bool isCreateSupported = false;
-        bool isRemoveSupported = false;
-    } m_portBulkApiCap;
 
     // Port OA helper
     PortHelper m_portHlpr;
