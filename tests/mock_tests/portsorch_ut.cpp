@@ -25,13 +25,6 @@ namespace portsorch_test
     // SAI default ports
     std::map<std::string, std::vector<swss::FieldValueTuple>> defaultPortList;
 
-    // Port bulk API capabilities
-    struct {
-        bool isCreateSupported = false;
-        bool isRemoveSupported = false;
-        bool is_set = false;
-    } portBulkApiCap;
-
     sai_port_api_t ut_sai_port_api;
     sai_port_api_t *pold_sai_port_api;
 
@@ -127,42 +120,6 @@ namespace portsorch_test
     void _unhook_sai_queue_api()
     {
         sai_queue_api = pold_sai_queue_api;
-    }
-
-    void forcePortLegacyMode(PortsOrch *obj)
-    {
-        if (!portBulkApiCap.is_set)
-        {
-            portBulkApiCap.isCreateSupported = obj->m_portBulkApiCap.isCreateSupported;
-            portBulkApiCap.isRemoveSupported = obj->m_portBulkApiCap.isRemoveSupported;
-            portBulkApiCap.is_set = true;
-        }
-
-        obj->m_portBulkApiCap.isCreateSupported = false;
-        obj->m_portBulkApiCap.isRemoveSupported = false;
-    }
-
-    void forcePortBulkMode(PortsOrch *obj)
-    {
-        if (!portBulkApiCap.is_set)
-        {
-            portBulkApiCap.isCreateSupported = obj->m_portBulkApiCap.isCreateSupported;
-            portBulkApiCap.isRemoveSupported = obj->m_portBulkApiCap.isRemoveSupported;
-            portBulkApiCap.is_set = true;
-        }
-
-        obj->m_portBulkApiCap.isCreateSupported = true;
-        obj->m_portBulkApiCap.isRemoveSupported = true;
-    }
-
-    void restorePortMode(PortsOrch *obj)
-    {
-        if (portBulkApiCap.is_set)
-        {
-            obj->m_portBulkApiCap.isCreateSupported = portBulkApiCap.isCreateSupported;
-            obj->m_portBulkApiCap.isRemoveSupported = portBulkApiCap.isRemoveSupported;
-            portBulkApiCap.is_set = false;
-        }
     }
 
     void cleanupPorts(PortsOrch *obj)
@@ -403,84 +360,8 @@ namespace portsorch_test
         // Refill consumer
         gPortsOrch->addExistingData(&portTable);
 
-        // Force port legacy comparison logic
-        forcePortBulkMode(gPortsOrch);
-
         // Apply configuration
         static_cast<Orch*>(gPortsOrch)->doTask();
-
-        // Restore port comparison logic
-        restorePortMode(gPortsOrch);
-
-        // Port count: 32 Data + 1 CPU
-        ASSERT_EQ(gPortsOrch->getAllPorts().size(), ports.size() + 1);
-
-        // Dump pending tasks
-        std::vector<std::string> taskList;
-        gPortsOrch->dumpPendingTasks(taskList);
-        ASSERT_TRUE(taskList.empty());
-
-        // Cleanup ports
-        cleanupPorts(gPortsOrch);
-    }
-
-    TEST_F(PortsOrchTest, PortLegacyCreateRemove)
-    {
-        auto portTable = Table(m_app_db.get(), APP_PORT_TABLE_NAME);
-
-        // Get SAI default ports
-        auto &ports = defaultPortList;
-        ASSERT_TRUE(!ports.empty());
-
-        // Generate port config
-        for (std::uint32_t idx1 = 0, idx2 = 1; idx1 < ports.size() * 4; idx1 += 4, idx2++)
-        {
-            std::stringstream key;
-            key << FRONT_PANEL_PORT_PREFIX << idx1;
-
-            std::stringstream alias;
-            alias << "etp" << idx2;
-
-            std::stringstream index;
-            index << idx2;
-
-            std::stringstream lanes;
-            lanes << idx1 << "," << idx1 + 1 << "," << idx1 + 2 << "," << idx1 + 3;
-
-            std::vector<FieldValueTuple> fvList = {
-                { "alias",               alias.str() },
-                { "index",               index.str() },
-                { "lanes",               lanes.str() },
-                { "speed",               "100000"    },
-                { "autoneg",             "off"       },
-                { "adv_speeds",          "all"       },
-                { "interface_type",      "none"      },
-                { "adv_interface_types", "all"       },
-                { "fec",                 "rs"        },
-                { "mtu",                 "9100"      },
-                { "tpid",                "0x8100"    },
-                { "pfc_asym",            "off"       },
-                { "admin_status",        "up"        },
-                { "description",         "FP port"   }
-            };
-
-            portTable.set(key.str(), fvList);
-        }
-
-        // Set PortConfigDone
-        portTable.set("PortConfigDone", { { "count", std::to_string(ports.size()) } });
-
-        // Refill consumer
-        gPortsOrch->addExistingData(&portTable);
-
-        // Force port legacy comparison logic
-        forcePortLegacyMode(gPortsOrch);
-
-        // Apply configuration
-        static_cast<Orch*>(gPortsOrch)->doTask();
-
-        // Restore port comparison logic
-        restorePortMode(gPortsOrch);
 
         // Port count: 32 Data + 1 CPU
         ASSERT_EQ(gPortsOrch->getAllPorts().size(), ports.size() + 1);
