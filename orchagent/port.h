@@ -2,7 +2,7 @@
 #define SWSS_PORT_H
 
 extern "C" {
-#include "sai.h"
+#include <sai.h>
 }
 
 #include <set>
@@ -11,6 +11,8 @@ extern "C" {
 #include <map>
 #include <bitset>
 #include <unordered_set>
+
+#include <macaddress.h>
 
 #define DEFAULT_PORT_VLAN_ID    1
 /*
@@ -88,7 +90,15 @@ public:
         SUBPORT,
         SYSTEM,
         UNKNOWN
-    } ;
+    };
+
+    enum Role
+    {
+        Ext, // external
+        Int, // internal
+        Inb, // inband
+        Rec  // recirculation
+    };
 
 public:
     static constexpr std::size_t max_lanes = 8; // Max HW lanes

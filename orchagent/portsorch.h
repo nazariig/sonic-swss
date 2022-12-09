@@ -76,6 +76,15 @@ struct VlanMemberUpdate
     bool add;
 };
 
+template<typename T>
+struct PortCapability
+{
+    bool supported = false;
+    T data;
+};
+
+typedef PortCapability<PortSupportedFecModes> PortFecModeCapability_t;
+
 class PortsOrch : public Orch, public Subject
 {
 public:
@@ -165,7 +174,7 @@ public:
     bool setVoqInbandIntf(string &alias, string &type);
     bool getPortVlanMembers(Port &port, vlan_members_t &vlan_members);
 
-    bool getRecircPort(Port &p, PortRole_t role);
+    bool getRecircPort(Port &p, Port::Role role);
 
     const gearbox_phy_t* getGearboxPhy(const Port &port);
 
@@ -218,7 +227,7 @@ private:
     // Supported speeds on the system side.
     std::map<sai_object_id_t, PortSupportedSpeeds> m_portSupportedSpeeds;
     // Supported FEC modes on the system side.
-    std::map<sai_object_id_t, std::tuple<bool, PortSupportedFecModes>> m_portSupportedFecModes;
+    std::map<sai_object_id_t, PortFecModeCapability_t> m_portSupportedFecModes;
 
     bool m_initDone = false;
     Port m_cpuPort;
@@ -393,7 +402,7 @@ private:
     void initGearbox();
     bool initGearboxPort(Port &port);
 
-    map<string, PortRole_t> m_recircPortRole;
+    map<string, Port::Role> m_recircPortRole;
 
     //map key is tuple of <attached_switch_id, core_index, core_port_index>
     map<tuple<int, int, int>, sai_object_id_t> m_systemPortOidMap;

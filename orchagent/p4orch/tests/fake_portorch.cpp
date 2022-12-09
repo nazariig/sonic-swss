@@ -298,7 +298,7 @@ bool PortsOrch::setVoqInbandIntf(string &alias, string &type)
     return true;
 }
 
-bool PortsOrch::getRecircPort(Port &p, PortRole_t role)
+bool PortsOrch::getRecircPort(Port &p, Port::Role role)
 {
     return true;
 }

@@ -57,7 +57,6 @@ orchagent_SOURCES = \
             mplsrouteorch.cpp \
             neighorch.cpp \
             intfsorch.cpp \
-            port/portcnt.cpp \
             port/porthlpr.cpp \
             portsorch.cpp \
             fabricportsorch.cpp \

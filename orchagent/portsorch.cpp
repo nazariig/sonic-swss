@@ -2353,21 +2353,17 @@ bool PortsOrch::isFecModeSupported(const Port &port, sai_port_fec_mode_t fec_mod
 
     const auto &obj = m_portSupportedFecModes.at(port.m_port_id);
 
-    auto supported = std::get<0>(obj);
-
-    if (!supported)
+    if (!obj.supported)
     {
         return true;
     }
 
-    const auto &list = std::get<1>(obj);
-
-    if (list.empty())
+    if (obj.data.empty())
     {
         return false;
     }
 
-    return std::find(list.cbegin(), list.cend(), fec_mode) != list.cend();
+    return std::find(obj.data.cbegin(), obj.data.cend(), fec_mode) != obj.data.cend();
 }
 
 sai_status_t PortsOrch::getPortSupportedFecModes(PortSupportedFecModes &supported_fecmodes, sai_object_id_t port_id)
@@ -2422,10 +2418,7 @@ void PortsOrch::initPortSupportedFecModes(const std::string& alias, sai_object_i
     }
 
     auto &obj = m_portSupportedFecModes[port_id];
-    auto &supported = std::get<0>(obj);
-    auto &supported_fec_modes = std::get<1>(obj);
-
-    supported = false;
+    auto &supported_fec_modes = obj.data;
 
     auto status = getPortSupportedFecModes(supported_fec_modes, port_id);
     if (status != SAI_STATUS_SUCCESS)
@@ -2436,7 +2429,7 @@ void PortsOrch::initPortSupportedFecModes(const std::string& alias, sai_object_i
         return;
     }
 
-    supported = true;
+    obj.supported = true;
 
     std::vector<std::string> fecModeList;
     if (supported_fec_modes.empty())
@@ -3100,7 +3093,7 @@ bool PortsOrch::initPort(const PortConfig &port)
 
                 m_portList[alias].m_init = true;
 
-                if (role == PortRole_t::Rec || role == PortRole_t::Inb)
+                if (role == Port::Role::Rec || role == Port::Role::Inb)
                 {
                     m_recircPortRole[alias] = role;
                 }
@@ -3267,10 +3260,10 @@ void PortsOrch::doPortTask(Consumer &consumer)
 {
     SWSS_LOG_ENTER();
 
-    auto &map = consumer.m_toSync;
-    auto it = map.begin();
+    auto &taskMap = consumer.m_toSync;
+    auto it = taskMap.begin();
 
-    while (it != map.end())
+    while (it != taskMap.end())
     {
         auto keyOpFieldsValues = it->second;
         auto key = kfvKey(keyOpFieldsValues);
@@ -3281,7 +3274,7 @@ void PortsOrch::doPortTask(Consumer &consumer)
         if (key.empty())
         {
             SWSS_LOG_ERROR("Failed to parse port key: empty string");
-            it = map.erase(it);
+            it = taskMap.erase(it);
             continue;
         }
 
@@ -3295,7 +3288,7 @@ void PortsOrch::doPortTask(Consumer &consumer)
          */
         if (key == "PortConfigDone")
         {
-            it = map.erase(it);
+            it = taskMap.erase(it);
 
             /* portsyncd restarting case:
              * When portsyncd restarts, duplicate notifications may be received.
@@ -3318,7 +3311,7 @@ void PortsOrch::doPortTask(Consumer &consumer)
 
             SWSS_LOG_INFO("Got PortConfigDone notification from portsyncd");
 
-            it = map.begin();
+            it = taskMap.begin();
             continue;
         }
 
@@ -3341,7 +3334,7 @@ void PortsOrch::doPortTask(Consumer &consumer)
                 SWSS_LOG_INFO("Got PortInitDone notification from portsyncd");
             }
 
-            it = map.erase(it);
+            it = taskMap.erase(it);
             continue;
         }
 
@@ -3365,7 +3358,7 @@ void PortsOrch::doPortTask(Consumer &consumer)
 
             if (!m_portHlpr.parsePortConfig(pCfg))
             {
-                it = map.erase(it);
+                it = taskMap.erase(it);
                 continue;
             }
 
@@ -3499,7 +3492,7 @@ void PortsOrch::doPortTask(Consumer &consumer)
                         {
                             SWSS_LOG_ERROR("%s: autoneg is not supported (cap=%d)", p.m_alias.c_str(), p.m_cap_an);
                             // autoneg is not supported, don't retry
-                            it = map.erase(it);
+                            it = taskMap.erase(it);
                             continue;
                         }
                         if (p.m_admin_state_up)
@@ -3532,7 +3525,7 @@ void PortsOrch::doPortTask(Consumer &consumer)
                             }
                             else
                             {
-                                it = map.erase(it);
+                                it = taskMap.erase(it);
                             }
                             continue;
                         }
@@ -3563,7 +3556,7 @@ void PortsOrch::doPortTask(Consumer &consumer)
                         {
                             SWSS_LOG_WARN("%s: LT is not supported(cap=%d)", p.m_alias.c_str(), p.m_cap_lt);
                             // Don't retry
-                            it = map.erase(it);
+                            it = taskMap.erase(it);
                             continue;
                         }
 
@@ -3580,7 +3573,7 @@ void PortsOrch::doPortTask(Consumer &consumer)
                             }
                             else
                             {
-                                it = map.erase(it);
+                                it = taskMap.erase(it);
                             }
                             continue;
                         }
@@ -3615,7 +3608,7 @@ void PortsOrch::doPortTask(Consumer &consumer)
                                 p.m_alias.c_str(), pCfg.speed.value
                             );
                             // Speed not supported, dont retry
-                            it = map.erase(it);
+                            it = taskMap.erase(it);
                             continue;
                         }
 
@@ -3650,7 +3643,7 @@ void PortsOrch::doPortTask(Consumer &consumer)
                             }
                             else
                             {
-                                it = map.erase(it);
+                                it = taskMap.erase(it);
                             }
                             continue;
                         }
@@ -3706,7 +3699,7 @@ void PortsOrch::doPortTask(Consumer &consumer)
                             }
                             else
                             {
-                                it = map.erase(it);
+                                it = taskMap.erase(it);
                             }
                             continue;
                         }
@@ -3756,7 +3749,7 @@ void PortsOrch::doPortTask(Consumer &consumer)
                             }
                             else
                             {
-                                it = map.erase(it);
+                                it = taskMap.erase(it);
                             }
                             continue;
                         }
@@ -3806,7 +3799,7 @@ void PortsOrch::doPortTask(Consumer &consumer)
                             }
                             else
                             {
-                                it = map.erase(it);
+                                it = taskMap.erase(it);
                             }
                             continue;
                         }
@@ -3890,7 +3883,7 @@ void PortsOrch::doPortTask(Consumer &consumer)
                                 p.m_alias.c_str(), m_portHlpr.getFecStr(pCfg).c_str()
                             );
                             // FEC mode is not supported, don't retry
-                            it = map.erase(it);
+                            it = taskMap.erase(it);
                             continue;
                         }
 
@@ -7368,7 +7361,7 @@ bool PortsOrch::getSystemPorts()
     return true;
 }
 
-bool PortsOrch::getRecircPort(Port &port, PortRole_t role)
+bool PortsOrch::getRecircPort(Port &port, Port::Role role)
 {
     for (auto it = m_recircPortRole.begin(); it != m_recircPortRole.end(); it++)
     {

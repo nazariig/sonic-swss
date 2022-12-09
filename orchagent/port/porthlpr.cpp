@@ -10,7 +10,6 @@
 #include <boost/algorithm/string.hpp>
 
 #include "portschema.h"
-#include "porttype.h"
 #include "converter.h"
 #include "tokenize.h"
 #include "logger.h"
@@ -20,6 +19,12 @@
 using namespace swss;
 
 // constants ----------------------------------------------------------------------------------------------------------
+
+static const std::uint32_t minPortSpeed = 1;
+static const std::uint32_t maxPortSpeed = 800000;
+
+static const std::uint32_t minPortMtu = 68;
+static const std::uint32_t maxPortMtu = 9216;
 
 static const std::unordered_map<std::string, bool> portModeMap =
 {
@@ -91,12 +96,12 @@ static const std::unordered_map<std::string, sai_bridge_port_fdb_learning_mode_t
     { PORT_LEARN_MODE_NOTIFICATION, SAI_BRIDGE_PORT_FDB_LEARNING_MODE_FDB_NOTIFICATION }
 };
 
-static const std::unordered_map<std::string, PortRole_t> portRoleMap =
+static const std::unordered_map<std::string, Port::Role> portRoleMap =
 {
-    { PORT_ROLE_EXT, PortRole_t::Ext },
-    { PORT_ROLE_INT, PortRole_t::Int },
-    { PORT_ROLE_INB, PortRole_t::Inb },
-    { PORT_ROLE_REC, PortRole_t::Rec }
+    { PORT_ROLE_EXT, Port::Role::Ext },
+    { PORT_ROLE_INT, Port::Role::Int },
+    { PORT_ROLE_INB, Port::Role::Inb },
+    { PORT_ROLE_REC, Port::Role::Rec }
 };
 
 // functions ----------------------------------------------------------------------------------------------------------
@@ -286,11 +291,11 @@ bool PortHelper::parsePortSpeed(PortConfig &port, const std::string &field, cons
         return false;
     }
 
-    if (!((1 <= port.speed.value) && (port.speed.value <= 800000)))
+    if (!((minPortSpeed <= port.speed.value) && (port.speed.value <= maxPortSpeed)))
     {
         SWSS_LOG_ERROR(
-            "Failed to parse field(%s): value(%s) is out of range: 1 <= speed <= 800000",
-            field.c_str(), value.c_str()
+            "Failed to parse field(%s): value(%s) is out of range: %u <= speed <= %u",
+            field.c_str(), value.c_str(), minPortSpeed, maxPortSpeed
         );
         return false;
     }
@@ -347,11 +352,11 @@ bool PortHelper::parsePortAdvSpeeds(PortConfig &port, const std::string &field, 
         {
             auto speed = to_uint<std::uint32_t>(cit);
 
-            if (!((1 <= speed) && (speed <= 800000)))
+            if (!((minPortSpeed <= speed) && (speed <= maxPortSpeed)))
             {
                 SWSS_LOG_ERROR(
-                    "Failed to parse field(%s): value(%s) is out of range: 1 <= speed <= 800000",
-                    field.c_str(), value.c_str()
+                    "Failed to parse field(%s): value(%s) is out of range: %u <= speed <= %u",
+                    field.c_str(), value.c_str(), minPortSpeed, maxPortSpeed
                 );
                 return false;
             }
@@ -486,11 +491,11 @@ bool PortHelper::parsePortMtu(PortConfig &port, const std::string &field, const 
         return false;
     }
 
-    if (!((68 <= port.mtu.value) && (port.mtu.value <= 9216)))
+    if (!((minPortMtu <= port.mtu.value) && (port.mtu.value <= maxPortMtu)))
     {
         SWSS_LOG_ERROR(
-            "Failed to parse field(%s): value(%s) is out of range: 68 <= mtu <= 9216",
-            field.c_str(), value.c_str()
+            "Failed to parse field(%s): value(%s) is out of range: %u <= mtu <= %u",
+            field.c_str(), value.c_str(), minPortMtu, maxPortMtu
         );
         return false;
     }

@@ -13,29 +13,19 @@ extern "C" {
 #include <vector>
 #include <string>
 
-#include "porttype.h"
+#include "../port.h"
 
-class PortContainer
-{
-public:
-    PortContainer() = default;
-    virtual ~PortContainer() = default;
-
-    PortContainer(const std::string &key, const std::string &op) noexcept;
-
-public:
-    std::string key;
-    std::string op;
-    std::unordered_map<std::string, std::string> fieldValueMap;
-};
-
-class PortConfig final : public PortContainer
+class PortConfig final
 {
 public:
     PortConfig() = default;
     ~PortConfig() = default;
 
-    PortConfig(const std::string &key, const std::string &op) noexcept;
+    PortConfig(const std::string &key, const std::string &op) noexcept
+    {
+        this->key = key;
+        this->op = op;
+    }
 
     struct {
         std::string value;
@@ -167,7 +157,7 @@ public:
     } serdes; // Port serdes
 
     struct {
-        PortRole_t value;
+        swss::Port::Role value;
         bool is_set = false;
     } role; // Port role
 
@@ -180,4 +170,9 @@ public:
         std::string value;
         bool is_set = false;
     } description; // Port description
+
+    std::string key;
+    std::string op;
+
+    std::unordered_map<std::string, std::string> fieldValueMap;
 };
