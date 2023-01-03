@@ -74,6 +74,7 @@ orchagent_SOURCES = \
             pbhorch.cpp \
             saihelper.cpp \
             saiattr.cpp \
+            switch/swcap.cpp \
             switch/swhlpr.cpp \
             switchorch.cpp \
             pfcwdorch.cpp \

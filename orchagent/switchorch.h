@@ -3,6 +3,7 @@
 #include "acltable.h"
 #include "orch.h"
 #include "timer.h"
+#include "switch/swcap.h"
 #include "switch/swhlpr.h"
 
 #define DEFAULT_ASIC_SENSORS_POLLER_INTERVAL 60
@@ -112,6 +113,9 @@ private:
     // Information contained in the request from
     // external program for orchagent pre-shutdown state check
     WarmRestartCheck m_warmRestartCheck = {false, false, false};
+
+    // Switch OA capabilities
+    SwitchCapabilities swCap;
 
     // Switch OA helper
     SwitchHelper swHlpr;

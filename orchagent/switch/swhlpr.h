@@ -14,6 +14,9 @@ public:
     bool parseSwHash(SwitchHash &hash) const;
 
 private:
+    template<typename T>
+    bool parseSwHashFieldList(T &obj, const std::string &field, const std::string &value) const;
+
     bool parseSwHashEcmpHash(SwitchHash &hash, const std::string &field, const std::string &value) const;
     bool parseSwHashLagHash(SwitchHash &hash, const std::string &field, const std::string &value) const;
 

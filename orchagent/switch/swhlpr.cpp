@@ -4,10 +4,10 @@
 #include <unordered_set>
 #include <string>
 
-#include "swschema.h"
-#include "tokenize.h"
-#include "logger.h"
+#include <tokenize.h>
+#include <logger.h>
 
+#include "swschema.h"
 #include "swhlpr.h"
 
 using namespace swss;
@@ -48,7 +48,8 @@ void SwitchHelper::setSwHash(const SwitchHash &hash)
     this->swHash = hash;
 }
 
-bool SwitchHelper::parseSwHashEcmpHash(SwitchHash &hash, const std::string &field, const std::string &value) const
+template<typename T>
+bool SwitchHelper::parseSwHashFieldList(T &obj, const std::string &field, const std::string &value) const
 {
     SWSS_LOG_ENTER();
 
@@ -64,7 +65,8 @@ bool SwitchHelper::parseSwHashEcmpHash(SwitchHash &hash, const std::string &fiel
 
     if (hfSet.size() != hfList.size())
     {
-        SWSS_LOG_WARN("Duplicate hash fields in field(%s): unexpected value(%s)", field.c_str(), value.c_str());
+        SWSS_LOG_ERROR("Duplicate hash fields in field(%s): unexpected value(%s)", field.c_str(), value.c_str());
+        return false;
     }
 
     for (const auto &cit1 : hfSet)
@@ -76,48 +78,22 @@ bool SwitchHelper::parseSwHashEcmpHash(SwitchHash &hash, const std::string &fiel
             return false;
         }
 
-        hash.ecmp_hash.value.insert(cit2->second);
+        obj.value.insert(cit2->second);
     }
 
-    hash.ecmp_hash.is_set = true;
+    obj.is_set = true;
 
     return true;
 }
 
+bool SwitchHelper::parseSwHashEcmpHash(SwitchHash &hash, const std::string &field, const std::string &value) const
+{
+    return this->parseSwHashFieldList(hash.ecmp_hash, field, value);
+}
+
 bool SwitchHelper::parseSwHashLagHash(SwitchHash &hash, const std::string &field, const std::string &value) const
 {
-    SWSS_LOG_ENTER();
-
-    const auto &hfList = tokenize(value, ',');
-
-    if (hfList.empty())
-    {
-        SWSS_LOG_ERROR("Failed to parse field(%s): empty list is prohibited", field.c_str());
-        return false;
-    }
-
-    const auto &hfSet = std::unordered_set<std::string>(hfList.cbegin(), hfList.cend());
-
-    if (hfSet.size() != hfList.size())
-    {
-        SWSS_LOG_WARN("Duplicate hash fields in field(%s): unexpected value(%s)", field.c_str(), value.c_str());
-    }
-
-    for (const auto &cit1 : hfSet)
-    {
-        const auto &cit2 = swHashHashFieldMap.find(cit1);
-        if (cit2 == swHashHashFieldMap.cend())
-        {
-            SWSS_LOG_ERROR("Failed to parse field(%s): invalid value(%s)", field.c_str(), value.c_str());
-            return false;
-        }
-
-        hash.lag_hash.value.insert(cit2->second);
-    }
-
-    hash.lag_hash.is_set = true;
-
-    return true;
+    return this->parseSwHashFieldList(hash.lag_hash, field, value);
 }
 
 bool SwitchHelper::parseSwHash(SwitchHash &hash) const

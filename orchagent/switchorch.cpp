@@ -529,13 +529,26 @@ bool SwitchOrch::setSwitchHash(const SwitchHash &hash)
     {
         if (hObj.ecmp_hash.value != hash.ecmp_hash.value)
         {
-            if (!this->setSwitchHashEcmpHash(hash))
+            if (this->swCap.isSwitchEcmpHashSupported())
             {
-                SWSS_LOG_ERROR("Failed to set switch hash in SAI: ECMP hash");
-                return false;
-            }
+                if (!this->swCap.validateSwitchHashFieldCap(hash.ecmp_hash.value))
+                {
+                    SWSS_LOG_ERROR("Failed to validate switch ECMP hash: capability is not supported");
+                    return false;
+                }
 
-            cfgUpd = true;
+                if (!this->setSwitchHashEcmpHash(hash))
+                {
+                    SWSS_LOG_ERROR("Failed to set switch ECMP hash in SAI");
+                    return false;
+                }
+
+                cfgUpd = true;
+            }
+            else
+            {
+                SWSS_LOG_WARN("Switch ECMP hash configuration is not supported: skipping ...");
+            }
         }
     }
     else
@@ -551,13 +564,26 @@ bool SwitchOrch::setSwitchHash(const SwitchHash &hash)
     {
         if (hObj.lag_hash.value != hash.lag_hash.value)
         {
-            if (!this->setSwitchHashLagHash(hash))
+            if (this->swCap.isSwitchLagHashSupported())
             {
-                SWSS_LOG_ERROR("Failed to set switch hash in SAI: LAG hash");
-                return false;
-            }
+                if (!this->swCap.validateSwitchHashFieldCap(hash.lag_hash.value))
+                {
+                    SWSS_LOG_ERROR("Failed to validate switch LAG hash: capability is not supported");
+                    return false;
+                }
 
-            cfgUpd = true;
+                if (!this->setSwitchHashLagHash(hash))
+                {
+                    SWSS_LOG_ERROR("Failed to set switch LAG hash in SAI");
+                    return false;
+                }
+
+                cfgUpd = true;
+            }
+            else
+            {
+                SWSS_LOG_WARN("Switch LAG hash configuration is not supported: skipping ...");
+            }
         }
     }
     else
