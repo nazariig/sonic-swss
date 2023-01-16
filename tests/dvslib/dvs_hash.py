@@ -37,7 +37,13 @@ class DVSHash:
         if expected is None:
             return self.asic_db.get_keys(self.ADB_HASH)
 
-        return self.asic_db.wait_for_n_keys(self.ADB_HASH, expected)
+        num_keys = len(self.asic_db.default_hash_keys) + expected
+        keys = self.asic_db.wait_for_n_keys(self.ADB_HASH, num_keys)
+
+        for k in self.asic_db.default_hash_keys:
+            assert k in keys
+
+        return [k for k in keys if k not in self.asic_db.default_hash_keys]
 
     def verify_hash_count(
         self,
@@ -48,7 +54,7 @@ class DVSHash:
         Args:
             expected: The number of hash ids that are expected to be present in ASIC DB.
         """
-        self.asic_db.wait_for_n_keys("ASIC_STATE:SAI_OBJECT_TYPE_HASH", expected)
+        self.get_hash_ids(expected)
 
     def verify_hash_generic(
         self,

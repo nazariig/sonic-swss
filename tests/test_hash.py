@@ -68,7 +68,7 @@ class TestHashBasicFlows:
         hashlogger.info("Initialize HASH data")
 
         hashlogger.info("Verify HASH count")
-        self.dvs_hash.verify_hash_count(2)
+        self.dvs_hash.verify_hash_count(0)
 
         hashlogger.info("Get ECMP/LAG HASH id")
         hashIdList = sorted(self.dvs_hash.get_hash_ids())
