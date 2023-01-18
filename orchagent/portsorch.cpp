@@ -682,6 +682,11 @@ void PortsOrch::setPortConfigState(port_config_state_t value)
 
 bool PortsOrch::addPortBulk(const std::vector<PortConfig> &portList)
 {
+    // The method is used to create ports in a bulk mode.
+    // The action takes place when:
+    // 1. Ports are being initialized at system start
+    // 2. Ports are being added/removed by a user at runtime
+
     SWSS_LOG_ENTER();
 
     if (portList.empty())
