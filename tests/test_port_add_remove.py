@@ -248,4 +248,108 @@ class TestPortAddRemove(object):
         dvs.set_interface_status(PORT_B, port_admin_b)
         dvs.remove_vlan_member("6", PORT_A)
         dvs.remove_vlan_member("6", PORT_B)
+        dvs.remove_ip_address("Vlan6", "6.6.6.1/24")
         dvs.remove_vlan("6")
+
+
+@pytest.mark.usefixtures("dynamic_buffer")
+@pytest.mark.usefixtures("dvs_port_manager")
+class TestPortAddRemoveDup(object):
+    def test_add_remove_with_dup_lanes(self, testlog, dvs):
+        config_db = dvs.get_config_db()
+        app_db = dvs.get_app_db()
+        state_db = dvs.get_state_db()
+
+        # set mmu size
+        fvs = {"mmu_size": "12766208"}
+        state_db.create_entry("BUFFER_MAX_PARAM_TABLE", "global", fvs)
+
+        # get port count
+        port_count = len(self.dvs_port.get_port_ids())
+
+        # get port info
+        port_info = config_db.get_entry("PORT", PORT_A)
+
+        # remove buffer pg cfg for the port
+        pgs = config_db.get_keys("BUFFER_PG")
+        buffer_pgs = {}
+        for key in pgs:
+            if PORT_A in key:
+                buffer_pgs[key] = config_db.get_entry("BUFFER_PG", key)
+                config_db.delete_entry("BUFFER_PG", key)
+                app_db.wait_for_deleted_entry("BUFFER_PG_TABLE", key.replace(config_db.separator, app_db.separator))
+
+        # remove buffer queue cfg for the port
+        queues = config_db.get_keys("BUFFER_QUEUE")
+        buffer_queues = {}
+        for key in queues:
+            if PORT_A in key:
+                buffer_queues[key] = config_db.get_entry("BUFFER_QUEUE", key)
+                config_db.delete_entry("BUFFER_QUEUE", key)
+                app_db.wait_for_deleted_entry("BUFFER_QUEUE_TABLE", key.replace(config_db.separator, app_db.separator))
+
+        # shutdown port
+        dvs.port_admin_set(PORT_A, "down")
+
+        # remove port
+        self.dvs_port.remove_port_generic(PORT_A)
+        self.dvs_port.verify_port_count(port_count-1)
+
+        # make port config with duplicate lanes
+        dup_lanes = port_info["lanes"]
+        dup_lanes += ",{}".format(port_info["lanes"].split(",")[-1])
+
+        # add port
+        self.dvs_port.create_port_generic(PORT_A, dup_lanes, port_info["speed"])
+        self.dvs_port.verify_port_count(port_count)
+
+        # shutdown port
+        dvs.port_admin_set(PORT_A, "down")
+
+        # remove port
+        self.dvs_port.remove_port_generic(PORT_A)
+        self.dvs_port.verify_port_count(port_count-1)
+
+        # make port config
+        port_lanes = port_info.pop("lanes")
+        port_speed = port_info.pop("speed")
+
+        # re-add port
+        self.dvs_port.create_port_generic(PORT_A, port_lanes, port_speed, port_info)
+        self.dvs_port.verify_port_count(port_count)
+
+        # re-add buffer pg and queue cfg to the port
+        for key, pg in buffer_pgs.items():
+            config_db.update_entry("BUFFER_PG", key, pg)
+            app_db.wait_for_entry("BUFFER_PG_TABLE", key.replace(config_db.separator, app_db.separator))
+
+        for key, queue in buffer_queues.items():
+            config_db.update_entry("BUFFER_QUEUE", key, queue)
+            app_db.wait_for_entry("BUFFER_QUEUE_TABLE", key.replace(config_db.separator, app_db.separator))
+
+
+@pytest.mark.usefixtures("dvs_port_manager")
+class TestPortAddRemoveNeg(object):
+    @pytest.mark.parametrize(
+        "port,lanes,speed", [
+            pytest.param("Ethernet1000", "", "10000", id="empty-lanes-list"),
+            pytest.param("Ethernet1004", "1004,x,1006,1007", "10000", id="invalid-lanes-list"),
+            pytest.param("Ethernet1008", "1008,1009,1010,1011", "", id="empty-speed"),
+            pytest.param("Ethernet1012", "1012,1013,1014,1015", "invalid", id="invalid-speed"),
+            pytest.param("Ethernet1016", "1016,1017,1018,1019", "0", id="out-of-range-speed")
+        ]
+    )
+    def test_add_remove_neg(self, testlog, port, lanes, speed):
+        # get port count
+        port_asicdb_count = len(self.dvs_port.get_port_ids(dbid=self.dvs_port.ASIC_DB))
+        port_appdb_count = len(self.dvs_port.get_port_ids(dbid=self.dvs_port.APPL_DB))
+
+        # add port
+        self.dvs_port.create_port_generic(port, lanes, speed)
+        self.dvs_port.verify_port_count(port_appdb_count+1, self.dvs_port.APPL_DB)
+        self.dvs_port.verify_port_count(port_asicdb_count, self.dvs_port.ASIC_DB)
+
+        # remove port
+        self.dvs_port.remove_port_generic(port)
+        self.dvs_port.verify_port_count(port_appdb_count, self.dvs_port.APPL_DB)
+        self.dvs_port.verify_port_count(port_asicdb_count, self.dvs_port.ASIC_DB)
