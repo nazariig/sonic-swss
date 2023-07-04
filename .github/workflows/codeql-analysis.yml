@@ -68,7 +68,8 @@ jobs:
             autoconf-archive \
             uuid-dev \
             libjansson-dev \
-            python
+            python \
+            stgit
 
     - if: matrix.language == 'cpp'
       name: Build libnl
