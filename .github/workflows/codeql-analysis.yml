@@ -90,6 +90,9 @@ jobs:
         ln -s ../debian debian
         dpkg-buildpackage -rfakeroot -b -us -uc -j$(nproc)
         popd
+        set -x
+        ls -la
+        printenv
         dpkg-deb -x libnl-3-200_$LIBNL3_VER-$LIBNL3_REV_amd64.deb $(dirname $GITHUB_WORKSPACE)
         dpkg-deb -x libnl-3-dev_$LIBNL3_VER-$LIBNL3_REV_amd64.deb $(dirname $GITHUB_WORKSPACE)
         dpkg-deb -x libnl-genl-3-200_$LIBNL3_VER-$LIBNL3_REV_amd64.deb $(dirname $GITHUB_WORKSPACE)
