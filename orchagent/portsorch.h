@@ -16,6 +16,7 @@
 #include "flexcounterorch.h"
 #include "events.h"
 
+#include "port/portcap.h"
 #include "port/porthlpr.h"
 
 #define FCS_LEN 4
@@ -497,6 +498,9 @@ private:
 private:
     // Port config aggregator
     std::unordered_map<std::string, std::unordered_map<std::string, std::string>> m_portConfigMap;
+
+    // Port OA capabilities
+    PortCapabilities m_portCap;
 
     // Port OA helper
     PortHelper m_portHlpr;
