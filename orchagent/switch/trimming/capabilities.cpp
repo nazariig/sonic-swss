@@ -30,6 +30,7 @@ using namespace swss;
 // defines ------------------------------------------------------------------------------------------------------------
 
 #define CAPABILITY_SWITCH_QUEUE_RESOLUTION_MODE_FIELD "SWITCH|PACKET_TRIMMING_QUEUE_RESOLUTION_MODE"
+#define CAPABILITY_SWITCH_NUMBER_OF_UNICAST_QUEUES_FIELD "SWITCH|NUMBER_OF_UNICAST_QUEUES"
 
 #define CAPABILITY_SWITCH_TRIMMING_CAPABLE_FIELD "SWITCH_TRIMMING_CAPABLE"
 
@@ -49,6 +50,7 @@ static const std::unordered_map<sai_packet_trim_queue_resolution_mode_t, std::st
 // variables ----------------------------------------------------------------------------------------------------------
 
 extern sai_object_id_t gSwitchId;
+extern sai_switch_api_t *sai_switch_api;
 
 // functions ----------------------------------------------------------------------------------------------------------
 
@@ -82,6 +84,11 @@ static std::string toStr(const std::set<sai_packet_trim_queue_resolution_mode_t>
     return join(",", strList.cbegin(), strList.cend());
 }
 
+static std::string toStr(sai_uint32_t value)
+{
+    return std::to_string(value);
+}
+
 static std::string toStr(bool value)
 {
     return value ? "true" : "false";
@@ -97,16 +104,16 @@ SwitchTrimmingCapabilities::SwitchTrimmingCapabilities()
 
 bool SwitchTrimmingCapabilities::isSwitchTrimmingSupported() const
 {
-    auto size = capabilities.size.isAttrSupported;
-    auto dscp = capabilities.dscp.isAttrSupported;
-    auto mode = capabilities.mode.isAttrSupported;
+    auto size = trimCap.size.isAttrSupported;
+    auto dscp = trimCap.dscp.isAttrSupported;
+    auto mode = trimCap.mode.isAttrSupported;
     auto queue = true;
 
     // Do not care of queue index configuration capabilities,
     // if static queue resolution mode is not supported
-    if (capabilities.mode.isStaticModeSupported)
+    if (trimCap.mode.isStaticModeSupported)
     {
-        queue = capabilities.queue.isAttrSupported;
+        queue = trimCap.queue.isAttrSupported;
     }
 
     return size && dscp && mode && queue;
@@ -116,20 +123,43 @@ bool SwitchTrimmingCapabilities::validateQueueModeCap(sai_packet_trim_queue_reso
 {
     SWSS_LOG_ENTER();
 
-    if (!capabilities.mode.isEnumSupported)
+    if (!trimCap.mode.isEnumSupported)
     {
         return true;
     }
 
-    if (capabilities.mode.mSet.empty())
+    if (trimCap.mode.mSet.empty())
     {
         SWSS_LOG_ERROR("Failed to validate queue resolution mode: no capabilities");
         return false;
     }
 
-    if (capabilities.mode.mSet.count(value) == 0)
+    if (trimCap.mode.mSet.count(value) == 0)
     {
         SWSS_LOG_ERROR("Failed to validate queue resolution mode: value(%s) is not supported", toStr(value).c_str());
+        return false;
+    }
+
+    return true;
+}
+
+bool SwitchTrimmingCapabilities::validateQueueIndexCap(sai_uint32_t value) const
+{
+    SWSS_LOG_ENTER();
+
+    if (!genCap.uQueueNum.isAttrSupported)
+    {
+        return true;
+    }
+
+    auto maxUQIdx = genCap.uqNum.value - 1;
+
+    if (!(value <= maxUQIdx))
+    {
+        SWSS_LOG_ERROR(
+            "Failed to validate queue index: value(%u) is out of range: 0 <= index <= %u",
+            value, maxUQIdx
+        );
         return false;
     }
 
@@ -184,7 +214,7 @@ void SwitchTrimmingCapabilities::queryTrimSizeAttrCapabilities()
         return;
     }
 
-    capabilities.size.isAttrSupported = true;
+    trimCap.size.isAttrSupported = true;
 }
 
 void SwitchTrimmingCapabilities::queryTrimDscpAttrCapabilities()
@@ -214,7 +244,7 @@ void SwitchTrimmingCapabilities::queryTrimDscpAttrCapabilities()
         return;
     }
 
-    capabilities.dscp.isAttrSupported = true;
+    trimCap.dscp.isAttrSupported = true;
 }
 
 void SwitchTrimmingCapabilities::queryTrimModeEnumCapabilities()
@@ -245,7 +275,7 @@ void SwitchTrimmingCapabilities::queryTrimModeEnumCapabilities()
         capabilities.mode.isStaticModeSupported = false;
     }
 
-    capabilities.mode.isEnumSupported = true;
+    trimCap.mode.isEnumSupported = true;
 }
 
 void SwitchTrimmingCapabilities::queryTrimModeAttrCapabilities()
@@ -275,7 +305,7 @@ void SwitchTrimmingCapabilities::queryTrimModeAttrCapabilities()
         return;
     }
 
-    capabilities.mode.isAttrSupported = true;
+    trimCap.mode.isAttrSupported = true;
 }
 
 void SwitchTrimmingCapabilities::queryTrimQueueAttrCapabilities()
@@ -305,7 +335,60 @@ void SwitchTrimmingCapabilities::queryTrimQueueAttrCapabilities()
         return;
     }
 
-    capabilities.queue.isAttrSupported = true;
+    trimCap.queue.isAttrSupported = true;
+}
+
+void SwitchTrimmingCapabilities::queryTrimUnicastQueueNumberAttrCapabilities()
+{
+    SWSS_LOG_ENTER();
+
+    sai_attr_capability_t attrCap;
+
+    auto status = queryAttrCapabilitiesSai(
+        attrCap, SAI_OBJECT_TYPE_SWITCH, SAI_SWITCH_ATTR_NUMBER_OF_UNICAST_QUEUES
+    );
+    if (status != SAI_STATUS_SUCCESS)
+    {
+        SWSS_LOG_ERROR(
+            "Failed to get attribute(%s) capabilities",
+            toStr(SAI_OBJECT_TYPE_SWITCH, SAI_SWITCH_ATTR_NUMBER_OF_UNICAST_QUEUES).c_str()
+        );
+        return;
+    }
+
+    if (!attrCap.get_implemented)
+    {
+        SWSS_LOG_WARN(
+            "Attribute(%s) GET is not implemented in SAI",
+            toStr(SAI_OBJECT_TYPE_SWITCH, SAI_SWITCH_ATTR_NUMBER_OF_UNICAST_QUEUES).c_str()
+        );
+        return;
+    }
+
+    sai_attribute_t attr;
+    attr.id = SAI_SWITCH_ATTR_NUMBER_OF_UNICAST_QUEUES;
+
+    status = sai_switch_api->get_switch_attribute(gSwitchId, 1, &attr);
+    if (status != SAI_STATUS_SUCCESS)
+    {
+        SWSS_LOG_ERROR(
+            "Failed to get attribute(%s) value",
+            toStr(SAI_OBJECT_TYPE_SWITCH, SAI_SWITCH_ATTR_NUMBER_OF_UNICAST_QUEUES).c_str()
+        );
+        return;
+    }
+
+    if (attr.value.u32 == 0)
+    {
+        SWSS_LOG_WARN(
+            "Unexpected attribute(%s) value: unicast queues are not supported",
+            toStr(SAI_OBJECT_TYPE_SWITCH, SAI_SWITCH_ATTR_NUMBER_OF_UNICAST_QUEUES).c_str()
+        );
+        return;
+    }
+
+    genCap.uQueueNum.isAttrSupported = true;
+    genCap.uQueueNum.value = attr.value.u32;
 }
 
 void SwitchTrimmingCapabilities::queryCapabilities()
@@ -317,6 +400,7 @@ void SwitchTrimmingCapabilities::queryCapabilities()
     queryTrimModeAttrCapabilities();
 
     queryTrimQueueAttrCapabilities();
+    queryTrimUnicastQueueNumberAttrCapabilities();
 }
 
 FieldValueTuple SwitchTrimmingCapabilities::makeSwitchTrimmingCapDbEntry() const
@@ -330,7 +414,15 @@ FieldValueTuple SwitchTrimmingCapabilities::makeSwitchTrimmingCapDbEntry() const
 FieldValueTuple SwitchTrimmingCapabilities::makeQueueModeCapDbEntry() const
 {
     auto field = CAPABILITY_SWITCH_QUEUE_RESOLUTION_MODE_FIELD;
-    auto value = capabilities.mode.isEnumSupported ? toStr(capabilities.mode.mSet) : "N/A";
+    auto value = trimCap.mode.isEnumSupported ? toStr(trimCap.mode.mSet) : "N/A";
+
+    return FieldValueTuple(field, value);
+}
+
+FieldValueTuple SwitchTrimmingCapabilities::makeUnicastQueueNumberCapDbEntry() const
+{
+    auto field = CAPABILITY_SWITCH_NUMBER_OF_UNICAST_QUEUES_FIELD;
+    auto value = genCap.uQueueNum.isAttrSupported ? toStr(genCap.uQueueNum.value) : "N/A";
 
     return FieldValueTuple(field, value);
 }
@@ -344,7 +436,8 @@ void SwitchTrimmingCapabilities::writeCapabilitiesToDb()
 
     std::vector<FieldValueTuple> fvList = {
         makeSwitchTrimmingCapDbEntry(),
-        makeQueueModeCapDbEntry()
+        makeQueueModeCapDbEntry(),
+        makeUnicastQueueNumberCapDbEntry()
     };
 
     capTable.set(CAPABILITY_KEY, fvList);

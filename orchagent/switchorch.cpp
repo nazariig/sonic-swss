@@ -1039,6 +1039,12 @@ bool SwitchOrch::setSwitchTrimming(const SwitchTrimming &trim)
     {
         if (!tObj.queue.index.is_set || (tObj.queue.index.value != trim.queue.index.value))
         {
+            if (!trimCap.validateQueueIndexCap(trim.queue.index.value))
+            {
+                SWSS_LOG_ERROR("Failed to validate switch trimming queue index: capability is not supported");
+                return false;
+            }
+
             if (!setSwitchTrimmingQueueIndexSai(trim))
             {
                 SWSS_LOG_ERROR("Failed to set switch trimming queue index in SAI");

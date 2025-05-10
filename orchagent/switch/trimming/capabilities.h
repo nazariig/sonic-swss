@@ -18,10 +18,12 @@ public:
     bool isSwitchTrimmingSupported() const;
 
     bool validateQueueModeCap(sai_packet_trim_queue_resolution_mode_t value) const;
+    bool validateQueueIndexCap(sai_uint32_t value) const;
 
 private:
     swss::FieldValueTuple makeSwitchTrimmingCapDbEntry() const;
     swss::FieldValueTuple makeQueueModeCapDbEntry() const;
+    swss::FieldValueTuple makeUnicastQueueNumberCapDbEntry() const;
 
     sai_status_t queryEnumCapabilitiesSai(std::vector<sai_int32_t> &capList, sai_object_type_t objType, sai_attr_id_t attrId) const;
     sai_status_t queryAttrCapabilitiesSai(sai_attr_capability_t &attrCap, sai_object_type_t objType, sai_attr_id_t attrId) const;
@@ -31,6 +33,7 @@ private:
     void queryTrimModeEnumCapabilities();
     void queryTrimModeAttrCapabilities();
     void queryTrimQueueAttrCapabilities();
+    void queryTrimUnicastQueueNumberAttrCapabilities();
 
     void queryCapabilities();
     void writeCapabilitiesToDb();
@@ -54,5 +57,14 @@ private:
         struct {
             bool isAttrSupported = false;
         } queue; // SAI_SWITCH_ATTR_PACKET_TRIM_QUEUE_INDEX
-    } capabilities;
+    } trimCap;
+
+    struct
+    {
+        struct {
+            sai_uint32_t value;
+            bool is_set = false;
+            bool isAttrSupported = false;
+        } uQueueNum; // SAI_SWITCH_ATTR_NUMBER_OF_UNICAST_QUEUES
+    } genCap;
 };
