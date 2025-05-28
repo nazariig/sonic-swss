@@ -9,6 +9,8 @@
 #include "redisapi.h"
 #include "saiattr.h"
 
+#include "buffer/buffercache.h"
+
 #define BUFFER_POOL_WATERMARK_STAT_COUNTER_FLEX_COUNTER_GROUP "BUFFER_POOL_WATERMARK_STAT_COUNTER"
 #define BUFFER_POOL_WATERMARK_FLEX_STAT_COUNTER_POLL_MSECS  "60000"
 
@@ -98,6 +100,7 @@ class BufferOrch : public Orch
 public:
     BufferOrch(DBConnector *applDb, DBConnector *confDb, DBConnector *stateDb, vector<string> &tableNames);
     bool isPortReady(const std::string& port_name) const;
+    bool isBufferProfileTrimmingEligible(const std::string &bufferProfileKey);
     static type_map m_buffer_type_maps;
     void generateBufferPoolWatermarkCounterIdList(void);
     const object_reference_map &getBufferPoolNameOidMap(void);
@@ -148,6 +151,7 @@ private:
     std::unordered_map<std::string, bool> m_ready_list;
     std::unordered_map<std::string, std::vector<std::string>> m_port_ready_list_ref;
 
+    //Table m_applBufferProfileTable;
     Table m_stateBufferMaximumValueTable;
 
     unique_ptr<DBConnector> m_countersDb;
@@ -160,6 +164,9 @@ private:
     std::map<std::string, std::vector<PortBufferProfileListTask>> m_portEgressBufferProfileListBulk;
     std::map<std::string, std::vector<PriorityGroupTask>> m_priorityGroupBulk;
     std::map<std::string, std::vector<QueueTask>> m_queueBulk;
+
+    // Buffer Cache
+    BufferCache cache;
 };
 #endif /* SWSS_BUFFORCH_H */
 
