@@ -39,14 +39,9 @@ static inline std::uint32_t toUInt32(const std::string &str)
 
 // helper -------------------------------------------------------------------------------------------------------------
 
-bool SwitchTrimmingHelper::isStaticDscpMode(const SwitchTrimming &cfg) const
+bool SwitchTrimmingHelper::isSymDscpMode(const SwitchTrimming &cfg) const
 {
     return cfg.dscp.mode.is_set && (cfg.dscp.mode.value == SAI_PACKET_TRIM_DSCP_RESOLUTION_MODE_DSCP_VALUE);
-}
-
-bool SwitchTrimmingHelper::isDynamicDscpMode(const SwitchTrimming &cfg) const
-{
-    return cfg.dscp.mode.is_set && (cfg.dscp.mode.value == SAI_PACKET_TRIM_DSCP_RESOLUTION_MODE_FROM_TC);
 }
 
 bool SwitchTrimmingHelper::isStaticQueueMode(const SwitchTrimming &cfg) const
@@ -244,12 +239,6 @@ bool SwitchTrimmingHelper::validateTrimConfig(SwitchTrimming &cfg) const
     if (!cond)
     {
         SWSS_LOG_ERROR("Validation error: missing valid fields");
-        return false;
-    }
-
-    if (cfg.tc.is_set && !cfg.dscp.mode.is_set)
-    {
-        SWSS_LOG_ERROR("Validation error: missing mandatory field(%s)", SWITCH_TRIMMING_DSCP_VALUE);
         return false;
     }
 

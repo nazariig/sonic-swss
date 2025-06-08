@@ -51,7 +51,6 @@ std::map<string, std::map<size_t, string>> queue_port_flags;
 
 BufferOrch::BufferOrch(DBConnector *applDb, DBConnector *confDb, DBConnector *stateDb, vector<string> &tableNames) :
     Orch(applDb, tableNames),
-    //m_applBufferProfileTable(applDb, APP_BUFFER_PROFILE_TABLE_NAME),
     m_countersDb(new DBConnector("COUNTERS_DB", 0)),
     m_stateBufferMaximumValueTable(stateDb, STATE_BUFFER_MAXIMUM_VALUE_TABLE)
 {
@@ -273,27 +272,6 @@ bool BufferOrch::isPortReady(const std::string& port_name) const
     return result;
 }
 
-/*bool BufferOrch::isBufferProfileTrimmingEligible(const std::string &bufferProfileKey)
-{
-    auto tokens = tokenize(bufferProfileKey, delimiter);
-    if (tokens.size() != 2)
-    {
-        SWSS_LOG_ERROR("malformed key:%s. Must contain 2 tokens", bufferProfileKey.c_str());
-        return false;
-    }
-
-    std::string bufferProfileName(tokens.at(1));
-    std::string packetDiscardAction;
-
-    m_applBufferProfileTable.hget(
-        bufferProfileName,
-        BUFFER_PROFILE_PACKET_DISCARD_ACTION,
-        packetDiscardAction
-    );
-
-    return packetDiscardAction == BUFFER_PROFILE_PACKET_DISCARD_ACTION_TRIM;
-}*/
-
 void BufferOrch::clearBufferPoolWatermarkCounterIdList(const sai_object_id_t object_id)
 {
     if (m_isBufferPoolWatermarkCounterIdListGenerated)
@@ -418,7 +396,8 @@ task_process_status BufferOrch::processBufferPool(KeyOpFieldsValuesTuple &tuple)
     string op = kfvOp(tuple);
     string xoff;
 
-    SWSS_LOG_DEBUG("object name:%s", object_name.c_str());
+    SWSS_LOG_DEBUG("KEY: %s, OP: %s", object_name.c_str(), op.c_str());
+
     if (m_buffer_type_maps[map_type_name]->find(object_name) != m_buffer_type_maps[map_type_name]->end())
     {
         sai_object = (*(m_buffer_type_maps[map_type_name]))[object_name].m_saiObjectId;
@@ -429,7 +408,6 @@ task_process_status BufferOrch::processBufferPool(KeyOpFieldsValuesTuple &tuple)
             return task_process_status::task_need_retry;
         }
     }
-    SWSS_LOG_DEBUG("processing command:%s", op.c_str());
 
     if (op == SET_COMMAND)
     {
@@ -439,7 +417,8 @@ task_process_status BufferOrch::processBufferPool(KeyOpFieldsValuesTuple &tuple)
             string field = fvField(*i);
             string value = fvValue(*i);
 
-            SWSS_LOG_DEBUG("field:%s, value:%s", field.c_str(), value.c_str());
+            SWSS_LOG_DEBUG("FIELD: %s, VALUE: %s", field.c_str(), value.c_str());
+
             sai_attribute_t attr;
             if (field == buffer_size_field_name)
             {
@@ -626,7 +605,7 @@ task_process_status BufferOrch::processBufferProfile(KeyOpFieldsValuesTuple &tup
     string pool_name;
 
     SWSS_LOG_DEBUG("KEY: %s, OP: %s", object_name.c_str(), op.c_str());
-    //SWSS_LOG_DEBUG("object name:%s", object_name.c_str());
+
     if (m_buffer_type_maps[map_type_name]->find(object_name) != m_buffer_type_maps[map_type_name]->end())
     {
         sai_object = (*(m_buffer_type_maps[map_type_name]))[object_name].m_saiObjectId;
@@ -637,11 +616,11 @@ task_process_status BufferOrch::processBufferProfile(KeyOpFieldsValuesTuple &tup
             return task_process_status::task_need_retry;
         }
     }
-    //SWSS_LOG_DEBUG("processing command:%s", op.c_str());
+
     if (op == SET_COMMAND)
     {
         BufferProfileConfig cfg;
-        cache.getBufferCache(cfg, object_name);
+        m_bufHlpr.getBufferConfig(cfg, object_name);
         vector<sai_attribute_t> attribs;
         for (auto i = kfvFieldsValues(tuple).begin(); i != kfvFieldsValues(tuple).end(); i++)
         {
@@ -650,7 +629,8 @@ task_process_status BufferOrch::processBufferProfile(KeyOpFieldsValuesTuple &tup
 
             cfg.fieldValueMap[field] = value;
 
-            SWSS_LOG_DEBUG("field:%s, value:%s", field.c_str(), value.c_str());
+            SWSS_LOG_DEBUG("FIELD: %s, VALUE: %s", field.c_str(), value.c_str());
+
             sai_attribute_t attr;
             if (field == buffer_pool_field_name)
             {
@@ -768,7 +748,7 @@ task_process_status BufferOrch::processBufferProfile(KeyOpFieldsValuesTuple &tup
             }
         }
 
-        cache.parseBufferConfig(cfg);
+        m_bufHlpr.parseBufferConfig(cfg);
 
         if (cfg.isTrimmingEligible && cfg.isTrimmingProhibited())
         {
@@ -778,30 +758,6 @@ task_process_status BufferOrch::processBufferProfile(KeyOpFieldsValuesTuple &tup
             );
             return task_process_status::task_failed;
         }
-
-
-
-        /*if (cfg.profile_list.is_set)
-        {
-            for (const auto &cit : cfg.profile_list.value)
-            {
-                BufferProfileConfig cfg;
-
-                if (cache.getBufferCache(cfg, cit))
-                {
-                    if (cfg.isTrimmingEligible)
-                    {
-                        SWSS_LOG_ERROR(
-                            "Failed to configure ingress buffer profile list(%s): buffer profile(%s) is trimming eligible",
-                            key.c_str(), cit.c_str()
-                        );
-                        return task_process_status::task_failed;
-                    }
-                }
-            }
-        }*/
-
-
 
         if (SAI_NULL_OBJECT_ID != sai_object)
         {
@@ -854,8 +810,8 @@ task_process_status BufferOrch::processBufferProfile(KeyOpFieldsValuesTuple &tup
             SWSS_LOG_NOTICE("Created buffer profile %s with type %s", object_name.c_str(), map_type_name.c_str());
         }
 
-        // Update cache state
-        cache.setBufferCache(object_name, cfg);
+        // Update config state
+        m_bufHlpr.setBufferConfig(object_name, cfg);
 
         // Add reference to the buffer pool object
         setObjectReference(m_buffer_type_maps, map_type_name, object_name, buffer_pool_field_name, pool_name);
@@ -887,7 +843,7 @@ task_process_status BufferOrch::processBufferProfile(KeyOpFieldsValuesTuple &tup
 
         SWSS_LOG_NOTICE("Remove buffer profile %s with type %s", object_name.c_str(), map_type_name.c_str());
         removeObject(m_buffer_type_maps, map_type_name, object_name);
-        cache.delBufferProfileCache(object_name);
+        m_bufHlpr.delBufferProfileConfig(object_name);
     }
     else
     {
@@ -918,7 +874,7 @@ task_process_status BufferOrch::processQueue(KeyOpFieldsValuesTuple &tuple)
     string local_port_name;
 
     SWSS_LOG_DEBUG("KEY: %s, OP: %s", key.c_str(), op.c_str());
-    //SWSS_LOG_DEBUG("Processing:%s", key.c_str());
+
     tokens = tokenize(key, delimiter);
 
     vector<string> port_names;
@@ -1315,7 +1271,7 @@ task_process_status BufferOrch::processPriorityGroup(KeyOpFieldsValuesTuple &tup
     string old_buffer_profile_name;
 
     SWSS_LOG_DEBUG("KEY: %s, OP: %s", key.c_str(), op.c_str());
-    //SWSS_LOG_DEBUG("processing:%s", key.c_str());
+
     tokens = tokenize(key, delimiter);
     if (tokens.size() != 2)
     {
@@ -1356,8 +1312,8 @@ task_process_status BufferOrch::processPriorityGroup(KeyOpFieldsValuesTuple &tup
             return task_process_status::task_success;
         }
 
-        PriorityGroupConfig cfg;
-        cache.getBufferCache(cfg, key);
+        BufferPriorityGroupConfig cfg;
+        m_bufHlpr.getBufferConfig(cfg, key);
 
         for (const auto &cit : kfvFieldsValues(tuple))
         {
@@ -1369,13 +1325,13 @@ task_process_status BufferOrch::processPriorityGroup(KeyOpFieldsValuesTuple &tup
             cfg.fieldValueMap[field] = value;
         }
 
-        cache.parseBufferConfig(cfg);
+        m_bufHlpr.parseBufferConfig(cfg);
 
         if (cfg.profile.is_set)
         {
             BufferProfileConfig profCfg;
 
-            if (cache.getBufferCache(profCfg, cfg.profile.value))
+            if (m_bufHlpr.getBufferConfig(profCfg, cfg.profile.value))
             {
                 if (profCfg.isTrimmingEligible)
                 {
@@ -1388,52 +1344,7 @@ task_process_status BufferOrch::processPriorityGroup(KeyOpFieldsValuesTuple &tup
             }
         }
 
-        cache.setBufferCache(key, cfg);
-
-
-
-
-
-
-
-
-
-
-        /*for (const auto &cit : fvList)
-        {
-            auto fieldName = fvField(cit);
-            auto fieldValue = fvValue(cit);
-    
-            cfg.fieldValueMap[fieldName] = fieldValue;
-        }*/
-
-
-
-
-
-
-
-
-        /*if (isBufferProfileTrimmingEligible(buffer_profile_name))
-        {
-            SWSS_LOG_ERROR(
-                "Failed to configure PG(%s): buffer profile(%s) is trimming eligible",
-                key.c_str(), buffer_profile_name.c_str()
-            );
-            return task_process_status::task_failed;
-        }*/
-
-        // std::string packetDiscardAction;
-        // auto res = m_applBufferProfileTable.hget(
-        //     buffer_profile_name,
-        //     BUFFER_PROFILE_PACKET_DISCARD_ACTION,
-        //     packetDiscardAction
-        // )
-
-        // if (res)
-        // {
-
-        // }
+        m_bufHlpr.setBufferConfig(key, cfg);
 
         SWSS_LOG_NOTICE("Set buffer PG %s to %s", key.c_str(), buffer_profile_name.c_str());
 
@@ -1453,7 +1364,7 @@ task_process_status BufferOrch::processPriorityGroup(KeyOpFieldsValuesTuple &tup
         sai_buffer_profile = SAI_NULL_OBJECT_ID;
         SWSS_LOG_NOTICE("Remove buffer PG %s", key.c_str());
         removeObject(m_buffer_type_maps, APP_BUFFER_PG_TABLE_NAME, key);
-        cache.delPriorityGroupCache(key);
+        m_bufHlpr.delBufferPriorityGroupConfig(key);
     }
     else
     {
@@ -1708,7 +1619,6 @@ task_process_status BufferOrch::processIngressBufferProfileList(KeyOpFieldsValue
     string op = kfvOp(tuple);
 
     SWSS_LOG_DEBUG("KEY: %s, OP: %s", key.c_str(), op.c_str());
-    //SWSS_LOG_DEBUG("processing:%s", key.c_str());
 
     vector<string> port_names = tokenize(key, list_item_delimiter);
     vector<sai_object_id_t> profile_list;
@@ -1741,7 +1651,7 @@ task_process_status BufferOrch::processIngressBufferProfileList(KeyOpFieldsValue
         }
 
         IngressBufferProfileListConfig cfg;
-        cache.getBufferCache(cfg, key);
+        m_bufHlpr.getBufferConfig(cfg, key);
 
         for (const auto &cit : kfvFieldsValues(tuple))
         {
@@ -1753,7 +1663,7 @@ task_process_status BufferOrch::processIngressBufferProfileList(KeyOpFieldsValue
             cfg.fieldValueMap[field] = value;
         }
 
-        cache.parseBufferConfig(cfg);
+        m_bufHlpr.parseBufferConfig(cfg);
 
         if (cfg.profile_list.is_set)
         {
@@ -1761,7 +1671,7 @@ task_process_status BufferOrch::processIngressBufferProfileList(KeyOpFieldsValue
             {
                 BufferProfileConfig profCfg;
 
-                if (cache.getBufferCache(profCfg, cit))
+                if (m_bufHlpr.getBufferConfig(profCfg, cit))
                 {
                     if (profCfg.isTrimmingEligible)
                     {
@@ -1775,55 +1685,7 @@ task_process_status BufferOrch::processIngressBufferProfileList(KeyOpFieldsValue
             }
         }
 
-        cache.setBufferCache(key, cfg);
-
-
-
-
-        /*if (cache.getIngressBufferProfileListCache(cfg, key))
-        {
-
-
-        }*/
-
-        //====================================================
-        /*IngressBufferProfileListConfig cfg;
-
-        for (const auto &cit : kfvFieldsValues(tuple))
-        {
-            auto field = fvField(cit);
-            auto value = fvValue(cit);
-
-            SWSS_LOG_DEBUG("FIELD: %s, VALUE: %s", field.c_str(), value.c_str());
-
-            cfg.fieldValueMap[field] = value;
-        }
-
-        cache.parseBufferConfig(cfg);
-
-        if ()
-        {
-            for (const auto &cit : cfg.profileList)
-            {
-                BufferProfileConfig profCfg;
-    
-                if (cache.getBufferProfileCache(profCfg, cit))
-                {
-                    if (profCfg.isTrimmingEligible)
-                    {
-                        SWSS_LOG_ERROR(
-                            "Failed to configure ingress buffer profile list(%s): buffer profile(%s) is trimming eligible",
-                            key.c_str(), cit.c_str()
-                        );
-                        return task_process_status::task_failed;
-                    }
-                }
-            }
-        }*/
-
-
-
-        //cache.setIngressBufferProfileListCache(key, cfg);
+        m_bufHlpr.setBufferConfig(key, cfg);
 
         setObjectReference(m_buffer_type_maps, APP_BUFFER_PORT_INGRESS_PROFILE_LIST_NAME, key, buffer_profile_list_field_name, profile_name_list);
 
@@ -1834,7 +1696,7 @@ task_process_status BufferOrch::processIngressBufferProfileList(KeyOpFieldsValue
     {
         SWSS_LOG_NOTICE("%s has been removed from BUFFER_PORT_INGRESS_PROFILE_LIST_TABLE", key.c_str());
         removeObject(m_buffer_type_maps, APP_BUFFER_PORT_INGRESS_PROFILE_LIST_NAME, key);
-        cache.delIngressBufferProfileListCache(key);
+        m_bufHlpr.delIngressBufferProfileListConfig(key);
         attr.value.objlist.count = 0;
         attr.value.objlist.list = profile_list.data();
     }
@@ -1945,8 +1807,9 @@ task_process_status BufferOrch::processEgressBufferProfileList(KeyOpFieldsValues
     Port port;
     string key = kfvKey(tuple);
     string op = kfvOp(tuple);
+
     SWSS_LOG_DEBUG("KEY: %s, OP: %s", key.c_str(), op.c_str());
-    //SWSS_LOG_DEBUG("processing:%s", key.c_str());
+
     vector<string> port_names = tokenize(key, list_item_delimiter);
     vector<sai_object_id_t> profile_list;
     sai_attribute_t attr;
@@ -1978,7 +1841,7 @@ task_process_status BufferOrch::processEgressBufferProfileList(KeyOpFieldsValues
         }
 
         EgressBufferProfileListConfig cfg;
-        cache.getBufferCache(cfg, key);
+        m_bufHlpr.getBufferConfig(cfg, key);
 
         for (const auto &cit : kfvFieldsValues(tuple))
         {
@@ -1990,7 +1853,7 @@ task_process_status BufferOrch::processEgressBufferProfileList(KeyOpFieldsValues
             cfg.fieldValueMap[field] = value;
         }
 
-        cache.parseBufferConfig(cfg);
+        m_bufHlpr.parseBufferConfig(cfg);
 
         if (cfg.profile_list.is_set)
         {
@@ -1998,7 +1861,7 @@ task_process_status BufferOrch::processEgressBufferProfileList(KeyOpFieldsValues
             {
                 BufferProfileConfig profCfg;
 
-                if (cache.getBufferCache(profCfg, cit))
+                if (m_bufHlpr.getBufferConfig(profCfg, cit))
                 {
                     if (profCfg.isTrimmingEligible)
                     {
@@ -2012,7 +1875,7 @@ task_process_status BufferOrch::processEgressBufferProfileList(KeyOpFieldsValues
             }
         }
 
-        cache.setBufferCache(key, cfg);
+        m_bufHlpr.setBufferConfig(key, cfg);
 
         setObjectReference(m_buffer_type_maps, APP_BUFFER_PORT_EGRESS_PROFILE_LIST_NAME, key, buffer_profile_list_field_name, profile_name_list);
 
@@ -2023,7 +1886,7 @@ task_process_status BufferOrch::processEgressBufferProfileList(KeyOpFieldsValues
     {
         SWSS_LOG_NOTICE("%s has been removed from BUFFER_PORT_EGRESS_PROFILE_LIST_TABLE", key.c_str());
         removeObject(m_buffer_type_maps, APP_BUFFER_PORT_EGRESS_PROFILE_LIST_NAME, key);
-        cache.delEgressBufferProfileListCache(key);
+        m_bufHlpr.delEgressBufferProfileListConfig(key);
         attr.value.objlist.count = 0;
         attr.value.objlist.list = profile_list.data();
     }

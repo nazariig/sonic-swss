@@ -41,10 +41,6 @@ using namespace swss;
 #define SWITCH_STATE_DB_NAME    "STATE_DB"
 #define SWITCH_STATE_DB_TIMEOUT 0
 
-
-////SAI_SWITCH_ATTR_NUMBER_OF_UNICAST_QUEUES,
-/////SAI_SWITCH_ATTR_QOS_MAX_NUMBER_OF_TRAFFIC_CLASSES
-
 // constants ----------------------------------------------------------------------------------------------------------
 
 static const std::unordered_map<sai_packet_trim_dscp_resolution_mode_t, std::string> dscpModeMap =
@@ -545,11 +541,6 @@ void SwitchTrimmingCapabilities::queryTrimQueueIndexAttrCapabilities()
     trimCap.queue.index.isAttrSupported = true;
 }
 
-
-//SAI_SWITCH_ATTR_NUMBER_OF_UNICAST_QUEUES
-
-  //   SAI_SWITCH_ATTR_QOS_MAX_NUMBER_OF_TRAFFIC_CLASSES,
-
 void SwitchTrimmingCapabilities::queryTrimTrafficClassNumberAttrCapabilities()
 {
     SWSS_LOG_ENTER();
@@ -699,9 +690,6 @@ FieldValueTuple SwitchTrimmingCapabilities::makeQueueModeCapDbEntry() const
     return FieldValueTuple(field, value);
 }
 
-
-
-
 FieldValueTuple SwitchTrimmingCapabilities::makeTrafficClassNumberCapDbEntry() const
 {
     auto field = CAPABILITY_SWITCH_NUMBER_OF_TRAFFIC_CLASSES_FIELD;
@@ -710,11 +698,6 @@ FieldValueTuple SwitchTrimmingCapabilities::makeTrafficClassNumberCapDbEntry() c
     return FieldValueTuple(field, value);
 }
 
-
-
-
-
-
 FieldValueTuple SwitchTrimmingCapabilities::makeUnicastQueueNumberCapDbEntry() const
 {
     auto field = CAPABILITY_SWITCH_NUMBER_OF_UNICAST_QUEUES_FIELD;
@@ -722,7 +705,6 @@ FieldValueTuple SwitchTrimmingCapabilities::makeUnicastQueueNumberCapDbEntry() c
 
     return FieldValueTuple(field, value);
 }
-
 
 void SwitchTrimmingCapabilities::writeCapabilitiesToDb()
 {

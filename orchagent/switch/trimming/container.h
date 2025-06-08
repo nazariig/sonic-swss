@@ -29,6 +29,11 @@ public:
     } dscp; // New packet trimming DSCP value
 
     struct {
+        struct {
+            sai_uint8_t value;
+            bool is_set = false;
+        } cache;
+
         sai_uint8_t value;
         bool is_set = false;
     } tc; // New packet trimming TC value

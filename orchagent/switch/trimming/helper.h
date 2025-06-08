@@ -10,8 +10,7 @@ public:
     SwitchTrimmingHelper() = default;
     ~SwitchTrimmingHelper() = default;
 
-    bool isStaticDscpMode(const SwitchTrimming &cfg) const;
-    bool isDynamicDscpMode(const SwitchTrimming &cfg) const;
+    bool isSymDscpMode(const SwitchTrimming &cfg) const;
     bool isStaticQueueMode(const SwitchTrimming &cfg) const;
 
     const SwitchTrimming& getConfig() const;

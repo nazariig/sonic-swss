@@ -971,9 +971,15 @@ bool SwitchOrch::setSwitchTrimming(const SwitchTrimming &trim)
     SWSS_LOG_ENTER();
 
     auto tObj = trimHlpr.getConfig();
-    auto cfgUpd = false;
+
     auto dscpBak = false;
+    auto tcBak = false;
     auto queueBak = false;
+
+    auto tcUpdate = false;
+    auto tcSync = false;
+
+    auto cfgUpd = false;
 
     if (!trimCap.isSwitchTrimmingSupported())
     {
@@ -1019,9 +1025,21 @@ bool SwitchOrch::setSwitchTrimming(const SwitchTrimming &trim)
                 return false;
             }
 
-            if (trimHlpr.isStaticDscpMode(tObj))
+            if (trimHlpr.isSymDscpMode(tObj))
             {
                 dscpBak = true;
+            }
+
+            if (!trimHlpr.isSymDscpMode(trim))
+            {
+                if (!tObj.tc.cache.is_set)
+                {
+                    tcUpdate = true;
+                }
+                else
+                {
+                    tObj.tc.value = tObj.tc.cache.value;
+                }
             }
 
             cfgUpd = true;
@@ -1052,27 +1070,36 @@ bool SwitchOrch::setSwitchTrimming(const SwitchTrimming &trim)
 
     if (trim.tc.is_set)
     {
-        if (!tObj.tc.is_set || (tObj.tc.value != trim.tc.value))
+        if (!tObj.tc.is_set || (tObj.tc.value != trim.tc.value) || tcUpdate)
         {
-            if (!trimHlpr.isDynamicDscpMode(trim))
+            if (!trimHlpr.isSymDscpMode(trim))
             {
-                SWSS_LOG_ERROR("Failed to set switch trimming TC value: invalid DSCP mode is configured");
-                return false;
-            }
+                if (!trimCap.validateTrimTcCap(trim.tc.value))
+                {
+                    SWSS_LOG_ERROR("Failed to validate switch trimming TC value: capability is not supported");
+                    return false;
+                }
 
-            if (!trimCap.validateTrimTcCap(trim.tc.value))
-            {
-                SWSS_LOG_ERROR("Failed to validate switch trimming TC value: capability is not supported");
-                return false;
-            }
+                if (!setSwitchTrimmingTcSai(trim))
+                {
+                    SWSS_LOG_ERROR("Failed to set switch trimming TC value in SAI");
+                    return false;
+                }
 
-            if (!setSwitchTrimmingTcSai(trim))
+                tcSync = true;
+            }
+            else
             {
-                SWSS_LOG_ERROR("Failed to set switch trimming TC value in SAI");
-                return false;
+                SWSS_LOG_WARN("Skip setting switch trimming TC value for symmetric DSCP mode");
             }
 
             cfgUpd = true;
+        }
+
+        // Cache synchronization and backup are mutually exclusive
+        if (!tcSync)
+        {
+            tcBak = true;
         }
     }
     else
@@ -1144,19 +1171,30 @@ bool SwitchOrch::setSwitchTrimming(const SwitchTrimming &trim)
         return true;
     }
 
-    if (dscpBak || queueBak) // Override dscp/queue configuration during transition from static -> dynamic
+    if (dscpBak || tcBak || queueBak || tcSync) // Custom configuration update
     {
         auto cfg = trim;
 
-        if (dscpBak)
+        if (dscpBak) // Override dscp configuration during transition from symmetric -> asymmetric
         {
             cfg.dscp = tObj.dscp;
             cfg.dscp.mode = trim.dscp.mode;
         }
 
-        if (queueBak)
+        if (tcBak) // Override tc configuration to pass synchronization cache
+        {
+            cfg.tc.cache = tObj.tc.cache;
+        }
+
+        if (queueBak) // override queue configuration during transition from static -> dynamic
         {
             cfg.queue.index = tObj.queue.index;
+        }
+
+        if (tcSync) // Update tc synchronization cache
+        {
+            cfg.tc.cache.value = trim.tc.value;
+            cfg.tc.cache.is_set = true;
         }
 
         trimHlpr.setConfig(cfg);
